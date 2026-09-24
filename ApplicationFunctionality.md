@@ -5,17 +5,18 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 ## Tasks
 
 - Users can quickly capture a task from the overlay.
-- Users can view tasks by inbox, today, upcoming, and completed views.
+- The task list shows all active (not completed) tasks in a single flat list; there is no separate inbox/today/upcoming view selector.
+- A "Show completed" toggle in the task list header reveals completed tasks inline, dimmed, alongside the active ones. Completed tasks can be reopened from their row.
 - Users can edit a selected task's title and topic directly in the task list, without a separate details panel: each task row has an edit toggle that expands an inline editor beneath it.
 - Priority, due date, and recurrence remain part of a task's data and are preserved when a task is edited, but they are not shown or editable in the current UI.
 - Tasks display their position number in the current list.
 - Web links in task titles are clickable from the task list and open in the user's default browser.
 - Users can reorder tasks by dragging them with the mouse; the order is persisted.
 - Priority can still be captured quickly with `!urgent`, `!high`, `!normal`, or `!low` when creating a task, even though it is not shown afterward.
-- Users can complete or delete a task directly from its row in the task list.
+- Users can complete, reopen, or delete a task directly from its row in the task list.
 - Users can create, rename, reorder, and delete customizable topics from the Manage topics controls. The built-in "No topic" entry cannot be renamed or deleted.
 - Each task can be assigned to no topic or one topic.
-- Inbox, today, upcoming, and completed views are displayed grouped by topic by default.
+- The task list (active tasks, plus completed tasks when shown) is displayed grouped by topic by default.
 - The grouped list shows every user-defined topic as a section (including empty topics) followed by a "No topic" section, each listing its own tasks.
 - Users can collapse or expand each topic section independently.
 - Users can reorder user-defined topics by dragging their topic headers; the order is persisted. The "No topic" section remains last.

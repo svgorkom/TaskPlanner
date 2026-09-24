@@ -25,6 +25,15 @@
         <DataTemplate x:Key="TaskItemTemplate">
             <StackPanel>
                 <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                    <Setter Property="Opacity" Value="0.55" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -74,8 +83,18 @@
                                 Height="26"
                                 Padding="0"
                                 Margin="4,0,0,0"
+                                Visibility="{Binding IsCompleted, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
                                 ToolTip="Mark done"
                                 Command="{Binding DataContext.CompleteTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                        <Button Content="↺"
+                                Width="26"
+                                Height="26"
+                                Padding="0"
+                                Margin="4,0,0,0"
+                                Visibility="{Binding IsCompleted, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                ToolTip="Reopen task"
+                                Command="{Binding DataContext.ReopenTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}" />
                         <Button Content="✕"
                                 Width="26"
@@ -324,12 +343,30 @@
                         BorderThickness="1"
                         CornerRadius="12">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top"
-                                   Text="Tasks"
-                                   Style="{StaticResource SectionTitleStyle}" />
-                        <ComboBox DockPanel.Dock="Top"
-                                  ItemsSource="{Binding ViewKinds}"
-                                  SelectedItem="{Binding SelectedView, Mode=TwoWay}" />
+                        <Grid DockPanel.Dock="Top"
+                              Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Tasks"
+                                       Style="{StaticResource SectionTitleStyle}"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Show completed"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0" />
+                                <primitives:ToggleButton Style="{StaticResource SwitchToggleStyle}"
+                                                         IsChecked="{Binding ShowCompleted, Mode=TwoWay}"
+                                                         VerticalAlignment="Center"
+                                                         ToolTip="Show or hide completed tasks" />
+                            </StackPanel>
+                        </Grid>
                         <Grid>
                             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">

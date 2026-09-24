@@ -15,7 +15,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly TaskService taskService;
     private readonly TopicService topicService;
     private string newTaskText = string.Empty;
-    private TaskViewKind selectedView;
+    private bool showCompleted;
     private bool startWithWindows;
     private ThemeMode selectedThemeMode;
     private bool suppressStartWithWindowsChanged;
@@ -43,6 +43,7 @@ public sealed class MainViewModel : ObservableObject
         AddTaskCommand = new AsyncRelayCommand(AddTaskAsync, CanAddTask);
         SaveTaskCommand = new AsyncRelayCommand<TaskListItemViewModel>(SaveTaskAsync, task => task is not null);
         CompleteTaskCommand = new AsyncRelayCommand<TaskListItemViewModel>(CompleteTaskAsync, task => task is not null);
+        ReopenTaskCommand = new AsyncRelayCommand<TaskListItemViewModel>(ReopenTaskAsync, task => task is not null);
         DeleteTaskCommand = new AsyncRelayCommand<TaskListItemViewModel>(DeleteTaskAsync, task => task is not null);
         ToggleTaskExpandedCommand = new RelayCommand<TaskListItemViewModel>(ToggleTaskExpanded);
         AddNoteCommand = new AsyncRelayCommand<TaskListItemViewModel>(AddNoteAsync, task => task is not null);
@@ -70,13 +71,6 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<TopicGroupViewModel> TopicGroups { get; } = [];
 
     public ObservableCollection<TopicOption> Topics { get; } = [];
-    public IReadOnlyCollection<TaskViewKind> ViewKinds { get; } =
-    [
-        TaskViewKind.Inbox,
-        TaskViewKind.Today,
-        TaskViewKind.Upcoming,
-        TaskViewKind.Completed
-    ];
 
     public IReadOnlyCollection<ThemeMode> ThemeModes { get; } =
     [
@@ -97,12 +91,12 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    public TaskViewKind SelectedView
+    public bool ShowCompleted
     {
-        get => selectedView;
+        get => showCompleted;
         set
         {
-            if (SetProperty(ref selectedView, value))
+            if (SetProperty(ref showCompleted, value))
             {
                 _ = RefreshAsync(CancellationToken.None);
             }
@@ -162,6 +156,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand SaveTaskCommand { get; }
 
     public ICommand CompleteTaskCommand { get; }
+
+    public ICommand ReopenTaskCommand { get; }
 
     public ICommand DeleteTaskCommand { get; }
 
@@ -288,6 +284,17 @@ public sealed class MainViewModel : ObservableObject
         await RefreshAsync(cancellationToken);
     }
 
+    private async Task ReopenTaskAsync(TaskListItemViewModel? task, CancellationToken cancellationToken)
+    {
+        if (task is null)
+        {
+            return;
+        }
+
+        await taskService.ReopenAsync(task.Id, cancellationToken);
+        await RefreshAsync(cancellationToken);
+    }
+
     private async Task DeleteTaskAsync(TaskListItemViewModel? task, CancellationToken cancellationToken)
     {
         if (task is null)
@@ -360,7 +367,10 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task RefreshGroupedAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyCollection<TaskItem> tasks = await taskQueryService.ListAsync(SelectedView, null, false, cancellationToken);
+        IReadOnlyCollection<TaskItem> activeTasks = await taskQueryService.ListAsync(TaskViewKind.Active, null, false, cancellationToken);
+        IReadOnlyCollection<TaskItem> tasks = ShowCompleted
+            ? [.. activeTasks, .. await taskQueryService.ListAsync(TaskViewKind.Completed, null, false, cancellationToken)]
+            : activeTasks;
         Tasks.Clear();
         TopicGroups.Clear();
 

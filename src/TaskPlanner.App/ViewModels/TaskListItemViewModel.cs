@@ -51,6 +51,8 @@ public sealed class TaskListItemViewModel : ObservableObject
 
     public PlannerTaskStatus Status { get; }
 
+    public bool IsCompleted => Status == PlannerTaskStatus.Completed;
+
     public RecurrenceRule? RecurrenceRule { get; }
 
     public Guid? TopicId { get; }

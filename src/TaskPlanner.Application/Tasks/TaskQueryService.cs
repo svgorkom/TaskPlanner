@@ -31,6 +31,7 @@ public sealed class TaskQueryService
             TaskViewKind.Today => tasks.Where(task => task.Status == PlannerTaskStatus.Active && task.DueAt.HasValue && task.DueAt.Value < tomorrow),
             TaskViewKind.Upcoming => tasks.Where(task => task.Status == PlannerTaskStatus.Active && task.DueAt.HasValue && task.DueAt.Value >= tomorrow),
             TaskViewKind.Completed => tasks.Where(task => task.Status == PlannerTaskStatus.Completed),
+            TaskViewKind.Active => tasks.Where(task => task.Status == PlannerTaskStatus.Active),
             _ => throw new InvalidOperationException($"Unsupported task view: {viewKind}.")
         };
 
