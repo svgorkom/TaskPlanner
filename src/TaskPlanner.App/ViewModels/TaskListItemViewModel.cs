@@ -16,6 +16,7 @@ public sealed class TaskListItemViewModel
         ReminderAt = taskItem.ReminderAt;
         Status = taskItem.Status;
         RecurrenceRule = taskItem.RecurrenceRule;
+        TopicId = taskItem.TopicId;
         Notes = taskItem.Notes;
     }
 
@@ -38,6 +39,8 @@ public sealed class TaskListItemViewModel
     public RecurrenceRule? RecurrenceRule { get; }
 
     public IReadOnlyList<TaskNote> Notes { get; }
+
+    public Guid? TopicId { get; }
 
     public string DisplayTitle => $"{Number}. {Title}";
 

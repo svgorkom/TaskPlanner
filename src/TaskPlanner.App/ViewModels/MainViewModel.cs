@@ -2,7 +2,9 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
+using TaskPlanner.Application.Topics;
 using TaskPlanner.Domain.Tasks;
+using TaskPlanner.Domain.Topics;
 
 namespace TaskPlanner.App.ViewModels;
 
@@ -11,6 +13,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly QuickTaskParser quickTaskParser;
     private readonly TaskQueryService taskQueryService;
     private readonly TaskService taskService;
+    private readonly TopicService topicService;
     private string newTaskText = string.Empty;
     private TaskViewKind selectedView;
     private TaskListItemViewModel? selectedTask;
@@ -23,17 +26,24 @@ public sealed class MainViewModel : ObservableObject
     private ThemeMode selectedThemeMode;
     private bool suppressStartWithWindowsChanged;
     private string newNoteText = string.Empty;
+    private string newTopicName = string.Empty;
+    private TopicOption? editTopic;
+    private TopicOption? topicToManage;
+    private readonly Dictionary<Guid, bool> topicExpansionStates = [];
+    private bool noTopicExpanded = true;
 
     public MainViewModel(
         TaskService taskService,
         TaskQueryService taskQueryService,
         QuickTaskParser quickTaskParser,
+        TopicService topicService,
         ThemeMode selectedThemeMode,
         bool startWithWindows)
     {
         this.taskService = taskService;
         this.taskQueryService = taskQueryService;
         this.quickTaskParser = quickTaskParser;
+        this.topicService = topicService;
         this.selectedThemeMode = selectedThemeMode;
         this.startWithWindows = startWithWindows;
 
@@ -43,10 +53,14 @@ public sealed class MainViewModel : ObservableObject
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, HasSelectedTask);
         AddNoteCommand = new AsyncRelayCommand(AddNoteAsync, CanAddNote);
         RemoveNoteCommand = new AsyncRelayCommand<NoteViewModel>(RemoveNoteAsync, note => note is not null);
+        CreateTopicCommand = new AsyncRelayCommand(CreateTopicAsync, CanCreateTopic);
+        RenameTopicCommand = new AsyncRelayCommand(RenameTopicAsync, CanRenameTopic);
+        DeleteTopicCommand = new AsyncRelayCommand(DeleteTopicAsync, HasSelectedTopic);
+        ToggleTopicCommand = new RelayCommand<TopicGroupViewModel>(ToggleTopic);
         HideCommand = new RelayCommand(() => HideRequested?.Invoke(this, EventArgs.Empty));
         ExitCommand = new RelayCommand(() => ExitRequested?.Invoke(this, EventArgs.Empty));
 
-        _ = RefreshAsync(CancellationToken.None);
+        _ = InitializeAsync(CancellationToken.None);
     }
 
     public event EventHandler? HideRequested;
@@ -59,8 +73,10 @@ public sealed class MainViewModel : ObservableObject
 
     public ObservableCollection<TaskListItemViewModel> Tasks { get; } = [];
 
-    public ObservableCollection<NoteViewModel> SelectedTaskNotes { get; } = [];
+    public ObservableCollection<TopicGroupViewModel> TopicGroups { get; } = [];
 
+    public ObservableCollection<NoteViewModel> SelectedTaskNotes { get; } = [];
+    public ObservableCollection<TopicOption> Topics { get; } = [];
     public IReadOnlyCollection<TaskViewKind> ViewKinds { get; } =
     [
         TaskViewKind.Inbox,
@@ -111,6 +127,36 @@ public sealed class MainViewModel : ObservableObject
             if (SetProperty(ref selectedView, value))
             {
                 _ = RefreshAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    public TopicOption? EditTopic
+    {
+        get => editTopic;
+        set => SetProperty(ref editTopic, value);
+    }
+
+    public TopicOption? TopicToManage
+    {
+        get => topicToManage;
+        set
+        {
+            if (SetProperty(ref topicToManage, value))
+            {
+                RaiseTopicCommandStates();
+            }
+        }
+    }
+
+    public string NewTopicName
+    {
+        get => newTopicName;
+        set
+        {
+            if (SetProperty(ref newTopicName, value))
+            {
+                RaiseTopicCommandStates();
             }
         }
     }
@@ -207,6 +253,10 @@ public sealed class MainViewModel : ObservableObject
     public ICommand AddNoteCommand { get; }
 
     public ICommand RemoveNoteCommand { get; }
+    public ICommand CreateTopicCommand { get; }
+    public ICommand RenameTopicCommand { get; }
+    public ICommand DeleteTopicCommand { get; }
+    public ICommand ToggleTopicCommand { get; }
 
     public async Task ReorderTasksAsync(Guid draggedTaskId, Guid targetTaskId, CancellationToken cancellationToken)
     {
@@ -232,6 +282,33 @@ public sealed class MainViewModel : ObservableObject
         // would put the dragged task right back where it started.
         orderedIds.Insert(movingDown ? targetIndex + 1 : targetIndex, draggedTaskId);
         await taskService.ReorderAsync(orderedIds, cancellationToken);
+        await RefreshAsync(cancellationToken);
+    }
+
+    public async Task ReorderTopicsAsync(Guid draggedTopicId, Guid targetTopicId, CancellationToken cancellationToken)
+    {
+        if (draggedTopicId == targetTopicId)
+        {
+            return;
+        }
+
+        List<Guid> orderedIds = Topics
+            .Where(topic => topic.Id.HasValue)
+            .Select(topic => topic.Id!.Value)
+            .ToList();
+        int draggedIndex = orderedIds.IndexOf(draggedTopicId);
+        int originalTargetIndex = orderedIds.IndexOf(targetTopicId);
+        if (draggedIndex < 0 || originalTargetIndex < 0)
+        {
+            return;
+        }
+
+        bool movingDown = draggedIndex < originalTargetIndex;
+        orderedIds.RemoveAt(draggedIndex);
+        int targetIndex = orderedIds.IndexOf(targetTopicId);
+        orderedIds.Insert(movingDown ? targetIndex + 1 : targetIndex, draggedTopicId);
+        await topicService.ReorderAsync(orderedIds, cancellationToken);
+        await RefreshTopicsAsync(cancellationToken);
         await RefreshAsync(cancellationToken);
     }
 
@@ -282,7 +359,8 @@ public sealed class MainViewModel : ObservableObject
             EditPriority,
             dueAt,
             SelectedTask.ReminderAt,
-            recurrenceRule);
+            recurrenceRule,
+            EditTopic?.Id);
 
         await taskService.UpdateAsync(SelectedTask.Id, update, cancellationToken);
         await RefreshAsync(cancellationToken);
@@ -322,7 +400,7 @@ public sealed class MainViewModel : ObservableObject
         await taskService.AddNoteAsync(taskId, NewNoteText, cancellationToken);
         NewNoteText = string.Empty;
         await RefreshAsync(cancellationToken);
-        SelectedTask = Tasks.SingleOrDefault(task => task.Id == taskId);
+        SelectedTask = FindTaskById(taskId);
     }
 
     public async Task UpdateNoteAsync(NoteViewModel note, CancellationToken cancellationToken)
@@ -335,7 +413,7 @@ public sealed class MainViewModel : ObservableObject
         Guid taskId = SelectedTask.Id;
         await taskService.UpdateNoteAsync(taskId, note.Id, note.Text, cancellationToken);
         await RefreshAsync(cancellationToken);
-        SelectedTask = Tasks.SingleOrDefault(task => task.Id == taskId);
+        SelectedTask = FindTaskById(taskId);
     }
 
     private async Task RemoveNoteAsync(NoteViewModel? note, CancellationToken cancellationToken)
@@ -348,19 +426,132 @@ public sealed class MainViewModel : ObservableObject
         Guid taskId = SelectedTask.Id;
         await taskService.RemoveNoteAsync(taskId, note.Id, cancellationToken);
         await RefreshAsync(cancellationToken);
-        SelectedTask = Tasks.SingleOrDefault(task => task.Id == taskId);
+        SelectedTask = FindTaskById(taskId);
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyCollection<TaskItem> tasks = await taskQueryService.ListAsync(SelectedView, cancellationToken);
+        await RefreshGroupedAsync(cancellationToken);
+    }
+
+    private async Task RefreshGroupedAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<TaskItem> tasks = await taskQueryService.ListAsync(SelectedView, null, false, cancellationToken);
         Tasks.Clear();
+        TopicGroups.Clear();
 
         int number = 1;
-        foreach (TaskItem taskItem in tasks)
+        foreach (TopicOption topic in Topics.Where(option => !option.IsNoTopic))
         {
-            Tasks.Add(new TaskListItemViewModel(taskItem, number++));
+            Guid topicId = topic.Id
+                ?? throw new InvalidOperationException("A user-defined topic must have an id.");
+            List<TaskListItemViewModel> topicTasks = tasks
+                .Where(task => task.TopicId == topicId)
+                .Select(task => new TaskListItemViewModel(task, number++))
+                .ToList();
+            TopicGroups.Add(new TopicGroupViewModel(
+                topicId,
+                topic.Name,
+                topicTasks,
+                topicExpansionStates.GetValueOrDefault(topicId, true)));
         }
+
+        List<TaskListItemViewModel> unassignedTasks = tasks
+            .Where(task => !task.TopicId.HasValue)
+            .Select(task => new TaskListItemViewModel(task, number++))
+            .ToList();
+        TopicGroups.Add(new TopicGroupViewModel(
+            null,
+            "No topic",
+            unassignedTasks,
+            noTopicExpanded));
+    }
+
+    private TaskListItemViewModel? FindTaskById(Guid id)
+    {
+        return Tasks.SingleOrDefault(task => task.Id == id)
+            ?? TopicGroups.SelectMany(group => group.Tasks).SingleOrDefault(task => task.Id == id);
+    }
+
+    private async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        await RefreshTopicsAsync(cancellationToken);
+        await RefreshAsync(cancellationToken);
+    }
+
+    private async Task RefreshTopicsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyCollection<TaskTopic> topics = (await topicService.ListAsync(cancellationToken))
+            .OrderBy(topic => topic.SortOrder)
+            .ThenBy(topic => topic.CreatedAt)
+            .ToArray();
+        Topics.Clear();
+        Topics.Add(new TopicOption(null, "No topic", isNoTopic: true));
+        foreach (TaskTopic topic in topics)
+        {
+            Topics.Add(TopicOption.FromTopic(topic));
+        }
+
+        TopicToManage = Topics.FirstOrDefault(option => option.Id == TopicToManage?.Id)
+            ?? Topics.FirstOrDefault(option => !option.IsNoTopic);
+
+        if (SelectedTask is not null)
+        {
+            EditTopic = Topics.FirstOrDefault(option => option.Id == SelectedTask.TopicId);
+        }
+    }
+
+    private void ToggleTopic(TopicGroupViewModel? group)
+    {
+        if (group is null)
+        {
+            return;
+        }
+
+        group.IsExpanded = !group.IsExpanded;
+        if (group.TopicId is Guid topicId)
+        {
+            topicExpansionStates[topicId] = group.IsExpanded;
+        }
+        else
+        {
+            noTopicExpanded = group.IsExpanded;
+        }
+    }
+
+    private async Task CreateTopicAsync(CancellationToken cancellationToken)
+    {
+        await topicService.CreateAsync(NewTopicName, cancellationToken);
+        NewTopicName = string.Empty;
+        await RefreshTopicsAsync(cancellationToken);
+        await RefreshAsync(cancellationToken);
+    }
+
+    private async Task RenameTopicAsync(CancellationToken cancellationToken)
+    {
+        if (TopicToManage?.Id is not Guid topicId)
+        {
+            return;
+        }
+
+        await topicService.RenameAsync(topicId, NewTopicName, cancellationToken);
+        NewTopicName = string.Empty;
+        await RefreshTopicsAsync(cancellationToken);
+        await RefreshAsync(cancellationToken);
+    }
+
+    private async Task DeleteTopicAsync(CancellationToken cancellationToken)
+    {
+        if (TopicToManage?.Id is not Guid topicId)
+        {
+            return;
+        }
+
+        await topicService.DeleteAsync(topicId, cancellationToken);
+        topicExpansionStates.Remove(topicId);
+        await RefreshTopicsAsync(cancellationToken);
+        TopicToManage = null;
+        await RefreshAsync(cancellationToken);
     }
 
     private void PopulateEditor(TaskListItemViewModel? task)
@@ -370,6 +561,7 @@ public sealed class MainViewModel : ObservableObject
         EditDueDate = task?.DueAt?.DateTime.Date;
         EditIsRecurring = task?.RecurrenceRule is not null;
         EditRecurrenceFrequency = task?.RecurrenceRule?.Frequency ?? RecurrenceFrequency.Daily;
+        EditTopic = Topics.FirstOrDefault(option => option.Id == task?.TopicId) ?? Topics.FirstOrDefault();
         NewNoteText = string.Empty;
 
         SelectedTaskNotes.Clear();
@@ -423,5 +615,17 @@ public sealed class MainViewModel : ObservableObject
         {
             addNoteCommand.RaiseCanExecuteChanged();
         }
+        RaiseTopicCommandStates();
+    }
+
+    private bool CanCreateTopic() => !string.IsNullOrWhiteSpace(NewTopicName);
+    private bool CanRenameTopic() => TopicToManage?.Id is not null && !string.IsNullOrWhiteSpace(NewTopicName);
+    private bool HasSelectedTopic() => TopicToManage?.Id is not null;
+
+    private void RaiseTopicCommandStates()
+    {
+        (CreateTopicCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (RenameTopicCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (DeleteTopicCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
     }
 }

@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using TaskPlanner.Application.Abstractions;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
+using TaskPlanner.Application.Topics;
 using TaskPlanner.Infrastructure;
 using TaskPlanner.Infrastructure.Persistence;
 using TaskPlanner.Infrastructure.Scheduling;
@@ -41,10 +42,12 @@ public partial class App : WpfApplication
 
         IClock clock = new SystemClock();
         ITaskRepository taskRepository = new FileTaskRepository(Path.Combine(appDataPath, "tasks.json"));
+        ITopicRepository topicRepository = new FileTopicRepository(Path.Combine(appDataPath, "topics.json"));
         IReminderScheduler reminderScheduler = new InMemoryReminderScheduler();
         FileUserSettingsStore settingsStore = new(Path.Combine(appDataPath, "settings.json"));
 
         TaskService taskService = new(taskRepository, reminderScheduler, clock);
+        TopicService topicService = new(topicRepository, taskRepository, clock);
         TaskQueryService taskQueryService = new(taskRepository, clock);
         QuickTaskParser quickTaskParser = new(clock);
         UserSettings settings = await settingsStore.LoadAsync(CancellationToken.None);
@@ -65,7 +68,7 @@ public partial class App : WpfApplication
         ThemeManager themeManager = new();
         themeManager.Apply(settings.Theme);
 
-        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, settings.Theme, settings.StartWithWindows);
+        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, topicService, settings.Theme, settings.StartWithWindows);
         viewModel.ThemeModeChanged += async (_, themeMode) =>
         {
             themeManager.Apply(themeMode);

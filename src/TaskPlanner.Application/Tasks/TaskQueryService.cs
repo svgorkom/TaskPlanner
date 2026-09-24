@@ -14,7 +14,11 @@ public sealed class TaskQueryService
         this.clock = clock;
     }
 
-    public async Task<IReadOnlyCollection<TaskItem>> ListAsync(TaskViewKind viewKind, CancellationToken cancellationToken)
+    public async Task<IReadOnlyCollection<TaskItem>> ListAsync(
+        TaskViewKind viewKind,
+        Guid? topicId,
+        bool noTopic,
+        CancellationToken cancellationToken)
     {
         IReadOnlyCollection<TaskItem> tasks = await taskRepository.ListAsync(cancellationToken);
         DateTimeOffset now = clock.Now;
@@ -30,9 +34,17 @@ public sealed class TaskQueryService
             _ => throw new InvalidOperationException($"Unsupported task view: {viewKind}.")
         };
 
+        query = noTopic ? query.Where(task => !task.TopicId.HasValue) :
+            topicId.HasValue ? query.Where(task => task.TopicId == topicId) : query;
+
         return query
             .OrderBy(task => task.SortOrder)
             .ThenBy(task => task.CreatedAt)
             .ToArray();
+    }
+
+    public Task<IReadOnlyCollection<TaskItem>> ListAsync(TaskViewKind viewKind, CancellationToken cancellationToken)
+    {
+        return ListAsync(viewKind, null, false, cancellationToken);
     }
 }

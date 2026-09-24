@@ -8,4 +8,5 @@ public sealed record TaskUpdate(
     TaskPriority Priority,
     DateTimeOffset? DueAt,
     DateTimeOffset? ReminderAt,
-    RecurrenceRule? RecurrenceRule);
+    RecurrenceRule? RecurrenceRule,
+    Guid? TopicId = null);

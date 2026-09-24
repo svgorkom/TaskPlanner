@@ -8,8 +8,8 @@
         xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="Task Planner"
-        Width="560"
-        Height="720"
+        Width="600"
+        Height="760"
         WindowStyle="None"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -19,6 +19,49 @@
         FontSize="14"
         Deactivated="Window_Deactivated"
         PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <app:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+        <DataTemplate x:Key="TaskItemTemplate">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0"
+                        Width="4"
+                        CornerRadius="2"
+                        Background="{DynamicResource AccentBrush}"
+                        Margin="0,2,10,2" />
+                <StackPanel Grid.Column="1">
+                    <TextBlock app:LinkTextBlockBehavior.Segments="{Binding DisplayTitleSegments}"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Summary}"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               FontSize="12"
+                               Margin="0,3,0,0" />
+                    <ItemsControl ItemsSource="{Binding NotePreviewLines}"
+                                  Margin="0,2,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           FontStyle="Italic"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxHeight="30" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="52"
                             CornerRadius="12"
@@ -40,7 +83,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Height="52" Margin="16,0,8,0">
+            <Grid Grid.Row="0" Height="58" Margin="18,0,10,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -73,24 +116,25 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
-                            Margin="0,0,8,0"
+                            Margin="0,0,10,0"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <TextBlock Text="Start with Windows"
                                Foreground="{DynamicResource MutedTextBrush}"
                                FontSize="12"
                                VerticalAlignment="Center"
-                               Margin="0,0,8,10" />
+                               Margin="0,0,8,0" />
                     <primitives:ToggleButton Style="{StaticResource SwitchToggleStyle}"
                                              IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
                                              VerticalAlignment="Center"
-                                             Margin="0,0,18,10"
+                                             Margin="0,0,18,0"
                                              ToolTip="Start Task Planner automatically when you sign in to Windows" />
                     <TextBlock Text="Theme"
                                Foreground="{DynamicResource MutedTextBrush}"
                                FontSize="12"
                                VerticalAlignment="Center"
-                               Margin="0,0,8,10" />
-                    <ComboBox Width="96"
+                               Margin="0,0,8,0" />
+                    <ComboBox Width="112"
+                              Style="{StaticResource HeaderComboBoxStyle}"
                               ItemsSource="{Binding ThemeModes}"
                               SelectedItem="{Binding SelectedThemeMode, Mode=TwoWay}" />
                 </StackPanel>
@@ -102,7 +146,7 @@
             </Grid>
 
             <Border Grid.Row="1"
-                    Margin="16,8,16,14"
+                    Margin="18,8,18,16"
                     Padding="16"
                     Background="{DynamicResource SurfaceBrush}"
                     BorderBrush="{DynamicResource BorderBrush}"
@@ -112,10 +156,13 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock Grid.Row="0"
                                Text="Capture a task"
-                               Style="{StaticResource SectionTitleStyle}" />
+                               Style="{StaticResource SectionTitleStyle}"
+                               Margin="0,0,0,10" />
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -131,12 +178,53 @@
                                 Style="{StaticResource AccentButtonStyle}"
                                 Command="{Binding AddTaskCommand}" />
                     </Grid>
+                    <TextBlock Grid.Row="2"
+                               Text="Manage topics"
+                               Style="{StaticResource FormLabelStyle}"
+                               Margin="0,8,0,4" />
+                    <Grid Grid.Row="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="0.9*" />
+                                <ColumnDefinition Width="1.1*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0"
+                                      ItemsSource="{Binding Topics}"
+                                      SelectedItem="{Binding TopicToManage, Mode=TwoWay}"
+                                      Margin="0,0,8,10"
+                                      ToolTip="Select a topic to rename or delete" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding NewTopicName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,0,10"
+                                     ToolTip="New or replacement topic name" />
+                        </Grid>
+                        <WrapPanel Grid.Row="1"
+                                   Orientation="Horizontal">
+                            <Button Content="New topic"
+                                    MinWidth="108"
+                                    ToolTip="Create a topic"
+                                    Command="{Binding CreateTopicCommand}" />
+                            <Button Content="Rename topic"
+                                    MinWidth="118"
+                                    ToolTip="Rename the selected topic"
+                                    Command="{Binding RenameTopicCommand}" />
+                            <Button Content="Delete topic"
+                                    MinWidth="112"
+                                    Style="{StaticResource DestructiveButtonStyle}"
+                                    ToolTip="Delete the selected topic and move its tasks to No topic"
+                                    Command="{Binding DeleteTopicCommand}" />
+                        </WrapPanel>
+                    </Grid>
                 </Grid>
             </Border>
 
             <Grid Grid.Row="2" Margin="16,0,16,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.35*" />
+                    <ColumnDefinition Width="1.55*" />
                     <ColumnDefinition Width="1*" />
                 </Grid.ColumnDefinitions>
 
@@ -154,78 +242,90 @@
                         <ComboBox DockPanel.Dock="Top"
                                   ItemsSource="{Binding ViewKinds}"
                                   SelectedItem="{Binding SelectedView, Mode=TwoWay}" />
-
-                        <ListBox ItemsSource="{Binding Tasks}"
-                                 SelectedItem="{Binding SelectedTask, Mode=TwoWay}"
-                                 AllowDrop="True"
-                                 PreviewMouseLeftButtonDown="TaskList_PreviewMouseLeftButtonDown"
-                                 PreviewMouseMove="TaskList_PreviewMouseMove"
-                                 Drop="TaskList_Drop">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0"
-                                                Width="4"
-                                                CornerRadius="2"
-                                                Background="{DynamicResource AccentBrush}"
-                                                Margin="0,2,10,2" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock app:LinkTextBlockBehavior.Segments="{Binding DisplayTitleSegments}"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextBrush}"
-                                                       TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Summary}"
-                                                       Foreground="{DynamicResource MutedTextBrush}"
-                                                       FontSize="12"
-                                                       Margin="0,3,0,0" />
-                                            <ItemsControl ItemsSource="{Binding NotePreviewLines}"
-                                                          Margin="0,2,0,0">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding}"
-                                                                   Foreground="{DynamicResource MutedTextBrush}"
-                                                                   FontStyle="Italic"
-                                                                   FontSize="11"
-                                                                   TextTrimming="CharacterEllipsis" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <Grid>
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding TopicGroups}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,14">
+                                                <Border Padding="8,6"
+                                                        Background="{DynamicResource SubtleSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="0,0,0,1"
+                                                        AllowDrop="True"
+                                                        PreviewMouseLeftButtonDown="TopicHeader_PreviewMouseLeftButtonDown"
+                                                        PreviewMouseMove="TopicHeader_PreviewMouseMove"
+                                                        Drop="TopicHeader_Drop">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0"
+                                                                    Orientation="Horizontal">
+                                                            <Border Width="3"
+                                                                    Height="16"
+                                                                    Margin="0,0,8,0"
+                                                                    CornerRadius="2"
+                                                                    Background="{DynamicResource AccentBrush}" />
+                                                            <TextBlock Text="{Binding TopicName}"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Content="{Binding ToggleGlyph}"
+                                                                Width="28"
+                                                                Height="26"
+                                                                Padding="0"
+                                                                Margin="8,0,0,0"
+                                                                ToolTip="Expand or collapse topic"
+                                                                Command="{Binding DataContext.ToggleTopicCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </Grid>
+                                                </Border>
+                                                <ListBox ItemsSource="{Binding Tasks}"
+                                                         Style="{StaticResource GroupedTaskListStyle}"
+                                                         ItemTemplate="{StaticResource TaskItemTemplate}"
+                                                         Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                         SelectedItem="{Binding DataContext.SelectedTask, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
                     </DockPanel>
                 </Border>
 
                 <Border Grid.Column="1"
                         Margin="10,0,0,0"
-                        Padding="14"
+                        Padding="16"
                         Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
                     <StackPanel>
                         <TextBlock Text="Details"
-                                   Style="{StaticResource SectionTitleStyle}" />
+                                   Style="{StaticResource SectionTitleStyle}"
+                                   Margin="0,0,0,4" />
                         <TextBlock Text="Title"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="12" />
+                                   Style="{StaticResource FormLabelStyle}" />
                         <TextBox Text="{Binding EditTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Text="Priority"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="12" />
+                                   Style="{StaticResource FormLabelStyle}" />
                         <ComboBox ItemsSource="{Binding PriorityValues}"
                                   SelectedItem="{Binding EditPriority, Mode=TwoWay}" />
                         <TextBlock Text="Due date"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="12" />
+                                   Style="{StaticResource FormLabelStyle}" />
                         <DatePicker SelectedDate="{Binding EditDueDate, Mode=TwoWay}" Margin="0,0,0,10" />
+                        <TextBlock Text="Topic"
+                                   Style="{StaticResource FormLabelStyle}" />
+                        <ComboBox ItemsSource="{Binding Topics}"
+                                  SelectedItem="{Binding EditTopic, Mode=TwoWay}"
+                                  Margin="0,0,0,10" />
                         <CheckBox Content="Recurring"
                                   Foreground="{DynamicResource TextBrush}"
                                   IsChecked="{Binding EditIsRecurring, Mode=TwoWay}"
@@ -233,9 +333,8 @@
                         <ComboBox ItemsSource="{Binding RecurrenceValues}"
                                   SelectedItem="{Binding EditRecurrenceFrequency, Mode=TwoWay}" />
                         <TextBlock Text="Notes"
-                                   Foreground="{DynamicResource MutedTextBrush}"
-                                   FontSize="12"
-                                   Margin="0,10,0,0" />
+                                   Style="{StaticResource FormLabelStyle}"
+                                   Margin="0,8,0,0" />
                         <ItemsControl ItemsSource="{Binding SelectedTaskNotes}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -272,15 +371,25 @@
                                     Margin="6,0,0,0"
                                     Command="{Binding AddNoteCommand}" />
                         </Grid>
-                        <WrapPanel Margin="0,6,0,0">
+                        <Border Margin="0,8,0,0"
+                                Padding="0,8,0,0"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="0,1,0,0">
+                            <WrapPanel Orientation="Horizontal">
                             <Button Content="Save"
+                                    MinWidth="52"
                                     Style="{StaticResource AccentButtonStyle}"
                                     Command="{Binding SaveSelectedCommand}" />
                             <Button Content="Done"
+                                    MinWidth="52"
+                                    Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding CompleteSelectedCommand}" />
                             <Button Content="Delete"
+                                    MinWidth="62"
+                                    Style="{StaticResource DestructiveButtonStyle}"
                                     Command="{Binding DeleteSelectedCommand}" />
-                        </WrapPanel>
+                            </WrapPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
             </Grid>

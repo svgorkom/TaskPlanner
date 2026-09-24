@@ -50,6 +50,8 @@ public partial class MainWindow : Window
     private DateTimeOffset suppressAutoHideUntil;
     private WpfPoint taskDragStartPoint;
     private TaskListItemViewModel? draggedTask;
+    private WpfPoint topicDragStartPoint;
+    private TopicGroupViewModel? draggedTopic;
 
     public MainWindow(MainViewModel viewModel, UserSettings settings)
     {
@@ -328,6 +330,46 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             await viewModel.ReorderTasksAsync(sourceTask.Id, targetTask.Id, CancellationToken.None);
+        }
+    }
+
+    private void TopicHeader_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        topicDragStartPoint = e.GetPosition(null);
+        draggedTopic = (sender as FrameworkElement)?.DataContext as TopicGroupViewModel;
+    }
+
+    private void TopicHeader_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || draggedTopic?.TopicId is null)
+        {
+            return;
+        }
+
+        WpfPoint currentPosition = e.GetPosition(null);
+        if (Math.Abs(currentPosition.X - topicDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(currentPosition.Y - topicDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop((DependencyObject)sender, draggedTopic, System.Windows.DragDropEffects.Move);
+    }
+
+    private async void TopicHeader_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (draggedTopic?.TopicId is not Guid sourceId ||
+            (sender as FrameworkElement)?.DataContext is not TopicGroupViewModel targetGroup ||
+            targetGroup.TopicId is not Guid targetId)
+        {
+            draggedTopic = null;
+            return;
+        }
+
+        draggedTopic = null;
+        if (DataContext is MainViewModel viewModel)
+        {
+            await viewModel.ReorderTopicsAsync(sourceId, targetId, CancellationToken.None);
         }
     }
 

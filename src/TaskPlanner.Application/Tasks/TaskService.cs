@@ -41,6 +41,7 @@ public sealed class TaskService
         taskItem.Reschedule(update.DueAt, now);
         taskItem.SetReminder(update.ReminderAt, now);
         taskItem.SetRecurrence(update.RecurrenceRule, now);
+        taskItem.SetTopic(update.TopicId, now);
 
         await taskRepository.SaveAsync(taskItem, cancellationToken);
         await ScheduleReminderAsync(taskItem, cancellationToken);
@@ -138,6 +139,7 @@ public sealed class TaskService
         taskItem.Reschedule(draft.DueAt, now);
         taskItem.SetReminder(draft.ReminderAt, now);
         taskItem.SetRecurrence(draft.RecurrenceRule, now);
+        taskItem.SetTopic(draft.TopicId, now);
     }
 
     private async Task<TaskItem> RequireTaskAsync(Guid id, CancellationToken cancellationToken)

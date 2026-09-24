@@ -15,7 +15,8 @@ public sealed class TaskItem
         RecurrenceRule? recurrenceRule,
         DateTimeOffset? completedAt,
         int sortOrder = 0,
-        IEnumerable<TaskNote>? notes = null)
+        IEnumerable<TaskNote>? notes = null,
+        Guid? topicId = null)
     {
         if (id == Guid.Empty)
         {
@@ -34,6 +35,7 @@ public sealed class TaskItem
         RecurrenceRule = recurrenceRule;
         CompletedAt = completedAt;
         SortOrder = sortOrder;
+        TopicId = topicId;
         noteList = notes is null ? [] : [.. notes];
     }
 
@@ -62,6 +64,8 @@ public sealed class TaskItem
     public DateTimeOffset? CompletedAt { get; private set; }
 
     public int SortOrder { get; private set; }
+
+    public Guid? TopicId { get; private set; }
 
     public IReadOnlyList<TaskNote> Notes => noteList;
 
@@ -103,6 +107,12 @@ public sealed class TaskItem
     public void SetSortOrder(int sortOrder)
     {
         SortOrder = sortOrder;
+    }
+
+    public void SetTopic(Guid? topicId, DateTimeOffset updatedAt)
+    {
+        TopicId = topicId;
+        UpdatedAt = updatedAt;
     }
 
     public void Reschedule(DateTimeOffset? dueAt, DateTimeOffset updatedAt)

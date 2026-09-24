@@ -8,4 +8,5 @@ public sealed record TaskDraft(
     TaskPriority Priority,
     DateTimeOffset? DueAt,
     DateTimeOffset? ReminderAt,
-    RecurrenceRule? RecurrenceRule);
+    RecurrenceRule? RecurrenceRule,
+    Guid? TopicId = null);

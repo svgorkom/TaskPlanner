@@ -12,6 +12,13 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - Users can reorder tasks by dragging them with the mouse; the order is persisted.
 - Priority can be captured quickly with `!urgent`, `!high`, `!normal`, or `!low`, and is shown in task details and summaries.
 - Users can complete or delete a selected task.
+- Users can create, rename, reorder, and delete customizable topics from the Manage topics controls. The built-in "No topic" entry cannot be renamed or deleted.
+- Each task can be assigned to no topic or one topic.
+- Inbox, today, upcoming, and completed views are displayed grouped by topic by default.
+- The grouped list shows every user-defined topic as a section (including empty topics) followed by a "No topic" section, each listing its own tasks.
+- Users can collapse or expand each topic section independently.
+- Users can reorder user-defined topics by dragging their topic headers; the order is persisted. The "No topic" section remains last.
+- Deleting a topic leaves its tasks intact and clears their topic assignment.
 - Users can attach any number of free-text notes to a task, and add, edit, or delete each note independently without a separate save step.
 - A truncated preview of a task's notes is shown directly in the task list overview, in smaller muted italic text below the task summary.
 

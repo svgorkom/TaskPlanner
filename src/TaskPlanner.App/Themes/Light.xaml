@@ -15,6 +15,7 @@
     <Color x:Key="AccentColor">#2563EB</Color>
     <Color x:Key="AccentHoverColor">#1D4ED8</Color>
     <Color x:Key="AccentPressedColor">#1E40AF</Color>
+    <Color x:Key="DangerColor">#B42318</Color>
 
     <SolidColorBrush x:Key="ChromeBrush" Color="{DynamicResource ChromeColor}" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}" />
@@ -31,6 +32,7 @@
     <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{DynamicResource AccentHoverColor}" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="{DynamicResource AccentPressedColor}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}" />
 
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="{DynamicResource SurfaceColor}" />
     <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="{DynamicResource TextColor}" />

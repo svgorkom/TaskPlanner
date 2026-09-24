@@ -142,7 +142,8 @@ public sealed class FileTaskRepository : ITaskRepository
             recurrenceRule,
             dto.CompletedAt,
             dto.SortOrder ?? 0,
-            dto.Notes?.Select(ToDomain));
+            dto.Notes?.Select(ToDomain),
+            dto.TopicId);
     }
 
     private static TaskNote ToDomain(NoteDto dto)
@@ -167,6 +168,7 @@ public sealed class FileTaskRepository : ITaskRepository
             RecurrenceInterval = taskItem.RecurrenceRule?.Interval,
             CompletedAt = taskItem.CompletedAt,
             SortOrder = taskItem.SortOrder,
+            TopicId = taskItem.TopicId,
             Notes = taskItem.Notes.Select(ToDto).ToArray()
         };
     }
@@ -209,6 +211,8 @@ public sealed class FileTaskRepository : ITaskRepository
         public DateTimeOffset? CompletedAt { get; init; }
 
         public int? SortOrder { get; init; }
+
+        public Guid? TopicId { get; init; }
 
         public NoteDto[]? Notes { get; init; }
     }

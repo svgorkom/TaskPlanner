@@ -1,6 +1,8 @@
 ﻿using TaskPlanner.Application.Abstractions;
 using TaskPlanner.Application.Tasks;
+using TaskPlanner.Application.Topics;
 using TaskPlanner.Domain.Tasks;
+using TaskPlanner.Domain.Topics;
 
 TestRunner runner = new();
 
@@ -11,6 +13,10 @@ await runner.RunAsync("tasks can be reordered", TasksCanBeReorderedAsync);
 await runner.RunAsync("tasks with tied legacy sort order can be reordered", TasksWithTiedSortOrderCanBeReorderedAsync);
 await runner.RunAsync("task text link parser extracts browser links", TaskTextLinkParserExtractsBrowserLinksAsync);
 await runner.RunAsync("notes can be added edited and removed", NotesCanBeAddedEditedAndRemovedAsync);
+await runner.RunAsync("tasks can be assigned and filtered by one topic", TasksCanBeAssignedAndFilteredByOneTopicAsync);
+await runner.RunAsync("topics can be renamed", TopicsCanBeRenamedAsync);
+await runner.RunAsync("renaming a topic rejects duplicate names", RenamingATopicRejectsDuplicateNamesAsync);
+await runner.RunAsync("deleting a topic clears assignments", DeletingATopicClearsAssignmentsAsync);
 
 runner.ThrowIfFailed();
 
@@ -150,6 +156,76 @@ static async Task NotesCanBeAddedEditedAndRemovedAsync()
     Assert.Equal("Second note", afterRemove.Notes.Single().Text);
 }
 
+static async Task TasksCanBeAssignedAndFilteredByOneTopicAsync()
+{
+    FixedClock clock = new(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+    MemoryTaskRepository taskRepository = new();
+    MemoryTopicRepository topicRepository = new();
+    TopicService topicService = new(topicRepository, taskRepository, clock);
+    TaskService taskService = new(taskRepository, new NoopReminderScheduler(), clock);
+    TaskQueryService queryService = new(taskRepository, clock);
+    TaskTopic topic = await topicService.CreateAsync("Work", CancellationToken.None);
+
+    TaskItem assigned = await taskService.CreateAsync(
+        new TaskDraft("Assigned", null, TaskPriority.Normal, null, null, null, topic.Id),
+        CancellationToken.None);
+    await taskService.CreateAsync(
+        new TaskDraft("Unassigned", null, TaskPriority.Normal, null, null, null),
+        CancellationToken.None);
+
+    IReadOnlyCollection<TaskItem> topicTasks = await queryService.ListAsync(TaskViewKind.Inbox, topic.Id, false, CancellationToken.None);
+    IReadOnlyCollection<TaskItem> unassignedTasks = await queryService.ListAsync(TaskViewKind.Inbox, null, true, CancellationToken.None);
+
+    Assert.Equal(1, topicTasks.Count);
+    Assert.Equal(assigned.Id, topicTasks.Single().Id);
+    Assert.Equal(1, unassignedTasks.Count);
+    Assert.Equal("Unassigned", unassignedTasks.Single().Title);
+}
+
+static async Task DeletingATopicClearsAssignmentsAsync()
+{
+    FixedClock clock = new(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+    MemoryTaskRepository taskRepository = new();
+    MemoryTopicRepository topicRepository = new();
+    TopicService topicService = new(topicRepository, taskRepository, clock);
+    TaskService taskService = new(taskRepository, new NoopReminderScheduler(), clock);
+    TaskTopic topic = await topicService.CreateAsync("Work", CancellationToken.None);
+    TaskItem task = await taskService.CreateAsync(
+        new TaskDraft("Assigned", null, TaskPriority.Normal, null, null, null, topic.Id),
+        CancellationToken.None);
+
+    await topicService.DeleteAsync(topic.Id, CancellationToken.None);
+
+    TaskItem storedTask = await taskRepository.RequireAsync(task.Id);
+    Assert.Equal(null, storedTask.TopicId);
+    Assert.Equal(0, (await topicRepository.ListAsync(CancellationToken.None)).Count);
+}
+
+static async Task TopicsCanBeRenamedAsync()
+{
+    FixedClock clock = new(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+    MemoryTopicRepository topicRepository = new();
+    TopicService topicService = new(topicRepository, new MemoryTaskRepository(), clock);
+    TaskTopic topic = await topicService.CreateAsync("Work", CancellationToken.None);
+
+    await topicService.RenameAsync(topic.Id, "Personal", CancellationToken.None);
+
+    TaskTopic renamedTopic = (await topicRepository.ListAsync(CancellationToken.None)).Single();
+    Assert.Equal("Personal", renamedTopic.Name);
+}
+
+static async Task RenamingATopicRejectsDuplicateNamesAsync()
+{
+    FixedClock clock = new(new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+    MemoryTopicRepository topicRepository = new();
+    TopicService topicService = new(topicRepository, new MemoryTaskRepository(), clock);
+    TaskTopic firstTopic = await topicService.CreateAsync("Work", CancellationToken.None);
+    TaskTopic secondTopic = await topicService.CreateAsync("Personal", CancellationToken.None);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(
+        () => topicService.RenameAsync(secondTopic.Id, firstTopic.Name, CancellationToken.None));
+}
+
 internal sealed class TestRunner
 {
     private int failureCount;
@@ -185,6 +261,21 @@ internal static class Assert
         {
             throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
         }
+    }
+
+    public static async Task ThrowsAsync<TException>(Func<Task> action)
+        where TException : Exception
+    {
+        try
+        {
+            await action();
+        }
+        catch (TException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"Expected exception {typeof(TException).Name}.");
     }
 }
 
@@ -269,6 +360,43 @@ internal sealed class NoopReminderScheduler : IReminderScheduler
     public Task CancelAsync(Guid taskId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class MemoryTopicRepository : ITopicRepository
+{
+    private readonly Dictionary<Guid, TaskTopic> topics = [];
+
+    public Task<IReadOnlyCollection<TaskTopic>> ListAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyCollection<TaskTopic>>(topics.Values.ToArray());
+    }
+
+    public Task SaveAsync(TaskTopic topic, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        topics[topic.Id] = topic;
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        topics.Remove(id);
+        return Task.CompletedTask;
+    }
+
+    public Task SaveAllAsync(IReadOnlyCollection<TaskTopic> topicItems, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        topics.Clear();
+        foreach (TaskTopic topic in topicItems)
+        {
+            topics[topic.Id] = topic;
+        }
+
         return Task.CompletedTask;
     }
 }
