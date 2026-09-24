@@ -6,12 +6,13 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 
 - Users can quickly capture a task from the overlay.
 - Users can view tasks by inbox, today, upcoming, and completed views.
-- Users can edit a selected task's title, priority, due date, and recurrence.
+- Users can edit a selected task's title and topic directly in the task list, without a separate details panel: each task row has an edit toggle that expands an inline editor beneath it.
+- Priority, due date, and recurrence remain part of a task's data and are preserved when a task is edited, but they are not shown or editable in the current UI.
 - Tasks display their position number in the current list.
 - Web links in task titles are clickable from the task list and open in the user's default browser.
 - Users can reorder tasks by dragging them with the mouse; the order is persisted.
-- Priority can be captured quickly with `!urgent`, `!high`, `!normal`, or `!low`, and is shown in task details and summaries.
-- Users can complete or delete a selected task.
+- Priority can still be captured quickly with `!urgent`, `!high`, `!normal`, or `!low` when creating a task, even though it is not shown afterward.
+- Users can complete or delete a task directly from its row in the task list.
 - Users can create, rename, reorder, and delete customizable topics from the Manage topics controls. The built-in "No topic" entry cannot be renamed or deleted.
 - Each task can be assigned to no topic or one topic.
 - Inbox, today, upcoming, and completed views are displayed grouped by topic by default.
@@ -19,8 +20,8 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - Users can collapse or expand each topic section independently.
 - Users can reorder user-defined topics by dragging their topic headers; the order is persisted. The "No topic" section remains last.
 - Deleting a topic leaves its tasks intact and clears their topic assignment.
-- Users can attach any number of free-text notes to a task, and add, edit, or delete each note independently without a separate save step.
-- A truncated preview of a task's notes is shown directly in the task list overview, in smaller muted italic text below the task summary.
+- Users can attach any number of free-text notes to a task from its inline editor, and add, edit, or delete each note independently without a separate save step.
+- A truncated preview of a task's notes is shown directly in the task list overview, in smaller muted italic text below the task title.
 
 ## Panel behavior
 

@@ -1,11 +1,18 @@
+using System.Collections.ObjectModel;
 using TaskPlanner.Domain.Tasks;
 using TaskPlanner.Application.Tasks;
 
 namespace TaskPlanner.App.ViewModels;
 
-public sealed class TaskListItemViewModel
+public sealed class TaskListItemViewModel : ObservableObject
 {
-    public TaskListItemViewModel(TaskItem taskItem, int number)
+    private readonly IReadOnlyList<TaskNote> notes;
+    private bool isExpanded;
+    private string editTitle;
+    private TopicOption? editTopic;
+    private string newNoteText = string.Empty;
+
+    public TaskListItemViewModel(TaskItem taskItem, int number, IEnumerable<TopicOption> topics, bool isExpanded)
     {
         Number = number;
         Id = taskItem.Id;
@@ -17,7 +24,13 @@ public sealed class TaskListItemViewModel
         Status = taskItem.Status;
         RecurrenceRule = taskItem.RecurrenceRule;
         TopicId = taskItem.TopicId;
-        Notes = taskItem.Notes;
+        notes = taskItem.Notes;
+        this.isExpanded = isExpanded;
+        editTitle = taskItem.Title;
+        editTopic = topics.FirstOrDefault(topic => topic.Id == taskItem.TopicId) ?? topics.FirstOrDefault();
+
+        Notes = new ObservableCollection<NoteViewModel>(
+            notes.Select(note => new NoteViewModel(taskItem.Id, note)));
     }
 
     public int Number { get; }
@@ -28,6 +41,8 @@ public sealed class TaskListItemViewModel
 
     public string? Description { get; }
 
+    // Priority, due date, and recurrence are intentionally not editable from the UI anymore,
+    // but the values are preserved here so a save round-trips them unchanged.
     public TaskPriority Priority { get; }
 
     public DateTimeOffset? DueAt { get; }
@@ -38,23 +53,44 @@ public sealed class TaskListItemViewModel
 
     public RecurrenceRule? RecurrenceRule { get; }
 
-    public IReadOnlyList<TaskNote> Notes { get; }
-
     public Guid? TopicId { get; }
+
+    public ObservableCollection<NoteViewModel> Notes { get; }
 
     public string DisplayTitle => $"{Number}. {Title}";
 
     public IReadOnlyList<TaskTextSegment> DisplayTitleSegments => TaskTextLinkParser.Parse(DisplayTitle);
 
-    public string Summary
+    public bool IsExpanded
     {
-        get
+        get => isExpanded;
+        set
         {
-            string due = DueAt.HasValue ? DueAt.Value.ToString("g") : "No due date";
-            string recurrence = RecurrenceRule is null ? string.Empty : $" · Repeats {RecurrenceRule.Frequency}";
-
-            return $"{Priority} · {due}{recurrence}";
+            if (SetProperty(ref isExpanded, value))
+            {
+                RaisePropertyChanged(nameof(ToggleGlyph));
+            }
         }
+    }
+
+    public string ToggleGlyph => IsExpanded ? "⌃" : "✎";
+
+    public string EditTitle
+    {
+        get => editTitle;
+        set => SetProperty(ref editTitle, value);
+    }
+
+    public TopicOption? EditTopic
+    {
+        get => editTopic;
+        set => SetProperty(ref editTopic, value);
+    }
+
+    public string NewNoteText
+    {
+        get => newNoteText;
+        set => SetProperty(ref newNoteText, value);
     }
 
     public IReadOnlyList<string> NotePreviewLines
@@ -64,14 +100,14 @@ public sealed class TaskListItemViewModel
             const int MaxNotesShown = 2;
             const int MaxNoteLength = 40;
 
-            List<string> lines = Notes
+            List<string> lines = notes
                 .Take(MaxNotesShown)
                 .Select(note => note.Text.Length > MaxNoteLength
                     ? $"📝 {note.Text.AsSpan(0, MaxNoteLength)}…"
                     : $"📝 {note.Text}")
                 .ToList();
 
-            int remaining = Notes.Count - MaxNotesShown;
+            int remaining = notes.Count - MaxNotesShown;
             if (remaining > 0)
             {
                 lines.Add($"+{remaining} more");
@@ -79,5 +115,12 @@ public sealed class TaskListItemViewModel
 
             return lines;
         }
+    }
+
+    public void ResetEdits(IEnumerable<TopicOption> topics)
+    {
+        EditTitle = Title;
+        EditTopic = topics.FirstOrDefault(topic => topic.Id == TopicId) ?? topics.FirstOrDefault();
+        NewNoteText = string.Empty;
     }
 }

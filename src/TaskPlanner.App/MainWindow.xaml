@@ -23,43 +23,138 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <app:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <DataTemplate x:Key="TaskItemTemplate">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Grid.Column="0"
-                        Width="4"
-                        CornerRadius="2"
-                        Background="{DynamicResource AccentBrush}"
-                        Margin="0,2,10,2" />
-                <StackPanel Grid.Column="1">
-                    <TextBlock app:LinkTextBlockBehavior.Segments="{Binding DisplayTitleSegments}"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextBrush}"
-                               TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Summary}"
-                               Foreground="{DynamicResource MutedTextBrush}"
-                               FontSize="12"
-                               Margin="0,3,0,0" />
-                    <ItemsControl ItemsSource="{Binding NotePreviewLines}"
-                                  Margin="0,2,0,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           Foreground="{DynamicResource MutedTextBrush}"
-                                           FontStyle="Italic"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxHeight="30" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Grid>
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            Width="4"
+                            CornerRadius="2"
+                            Background="{DynamicResource AccentBrush}"
+                            Margin="0,2,10,2" />
+                    <StackPanel Grid.Column="1"
+                                VerticalAlignment="Center">
+                        <TextBlock app:LinkTextBlockBehavior.Segments="{Binding DisplayTitleSegments}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis" />
+                        <ItemsControl ItemsSource="{Binding NotePreviewLines}"
+                                      Margin="0,2,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               Foreground="{DynamicResource MutedTextBrush}"
+                                               FontStyle="Italic"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxHeight="30" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="8,0,0,0">
+                        <Button Content="{Binding ToggleGlyph}"
+                                Width="26"
+                                Height="26"
+                                Padding="0"
+                                ToolTip="Edit task"
+                                Command="{Binding DataContext.ToggleTaskExpandedCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                        <Button Content="✓"
+                                Width="26"
+                                Height="26"
+                                Padding="0"
+                                Margin="4,0,0,0"
+                                ToolTip="Mark done"
+                                Command="{Binding DataContext.CompleteTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                        <Button Content="✕"
+                                Width="26"
+                                Height="26"
+                                Padding="0"
+                                Margin="4,0,0,0"
+                                Style="{StaticResource DestructiveButtonStyle}"
+                                ToolTip="Delete task"
+                                Command="{Binding DataContext.DeleteTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                    </StackPanel>
+                </Grid>
+                <Border Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Margin="14,8,0,4"
+                        Padding="10"
+                        Background="{DynamicResource SubtleSurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <StackPanel>
+                        <TextBlock Text="Title"
+                                   Style="{StaticResource FormLabelStyle}" />
+                        <TextBox Text="{Binding EditTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="False" />
+                        <TextBlock Text="Topic"
+                                   Style="{StaticResource FormLabelStyle}"
+                                   Margin="0,8,0,4" />
+                        <ComboBox ItemsSource="{Binding DataContext.Topics, RelativeSource={RelativeSource AncestorType=Window}}"
+                                  SelectedItem="{Binding EditTopic, Mode=TwoWay}" />
+                        <TextBlock Text="Notes"
+                                   Style="{StaticResource FormLabelStyle}"
+                                   Margin="0,4,0,0" />
+                        <ItemsControl ItemsSource="{Binding Notes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 LostFocus="NoteTextBox_LostFocus" />
+                                        <Button Grid.Column="1"
+                                                Content="×"
+                                                Margin="6,0,0,0"
+                                                Command="{Binding DataContext.RemoveNoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="Delete note" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Grid Margin="0,6,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding NewNoteText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Add a note" />
+                            <Button Grid.Column="1"
+                                    Content="Add note"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding DataContext.AddNoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                        <Button Content="Save"
+                                HorizontalAlignment="Left"
+                                MinWidth="72"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Command="{Binding DataContext.SaveTaskCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </DataTemplate>
     </Window.Resources>
     <shell:WindowChrome.WindowChrome>
@@ -223,14 +318,7 @@
             </Border>
 
             <Grid Grid.Row="2" Margin="16,0,16,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.55*" />
-                    <ColumnDefinition Width="1*" />
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0"
-                        Margin="0,0,10,0"
-                        Padding="14"
+                <Border Padding="14"
                         Background="{DynamicResource SurfaceBrush}"
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
@@ -289,8 +377,7 @@
                                                 <ListBox ItemsSource="{Binding Tasks}"
                                                          Style="{StaticResource GroupedTaskListStyle}"
                                                          ItemTemplate="{StaticResource TaskItemTemplate}"
-                                                         Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                         SelectedItem="{Binding DataContext.SelectedTask, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" />
+                                                         Visibility="{Binding IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -298,99 +385,6 @@
                             </ScrollViewer>
                         </Grid>
                     </DockPanel>
-                </Border>
-
-                <Border Grid.Column="1"
-                        Margin="10,0,0,0"
-                        Padding="16"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                    <StackPanel>
-                        <TextBlock Text="Details"
-                                   Style="{StaticResource SectionTitleStyle}"
-                                   Margin="0,0,0,4" />
-                        <TextBlock Text="Title"
-                                   Style="{StaticResource FormLabelStyle}" />
-                        <TextBox Text="{Binding EditTitle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Text="Priority"
-                                   Style="{StaticResource FormLabelStyle}" />
-                        <ComboBox ItemsSource="{Binding PriorityValues}"
-                                  SelectedItem="{Binding EditPriority, Mode=TwoWay}" />
-                        <TextBlock Text="Due date"
-                                   Style="{StaticResource FormLabelStyle}" />
-                        <DatePicker SelectedDate="{Binding EditDueDate, Mode=TwoWay}" Margin="0,0,0,10" />
-                        <TextBlock Text="Topic"
-                                   Style="{StaticResource FormLabelStyle}" />
-                        <ComboBox ItemsSource="{Binding Topics}"
-                                  SelectedItem="{Binding EditTopic, Mode=TwoWay}"
-                                  Margin="0,0,0,10" />
-                        <CheckBox Content="Recurring"
-                                  Foreground="{DynamicResource TextBrush}"
-                                  IsChecked="{Binding EditIsRecurring, Mode=TwoWay}"
-                                  Margin="0,0,0,10" />
-                        <ComboBox ItemsSource="{Binding RecurrenceValues}"
-                                  SelectedItem="{Binding EditRecurrenceFrequency, Mode=TwoWay}" />
-                        <TextBlock Text="Notes"
-                                   Style="{StaticResource FormLabelStyle}"
-                                   Margin="0,8,0,0" />
-                        <ItemsControl ItemsSource="{Binding SelectedTaskNotes}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,4,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0"
-                                                 Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 AcceptsReturn="True"
-                                                 TextWrapping="Wrap"
-                                                 LostFocus="NoteTextBox_LostFocus" />
-                                        <Button Grid.Column="1"
-                                                Content="×"
-                                                Margin="6,0,0,0"
-                                                Command="{Binding DataContext.RemoveNoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip="Delete note" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Grid Margin="0,6,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0"
-                                     Text="{Binding NewNoteText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Add a note" />
-                            <Button Grid.Column="1"
-                                    Content="Add note"
-                                    Margin="6,0,0,0"
-                                    Command="{Binding AddNoteCommand}" />
-                        </Grid>
-                        <Border Margin="0,8,0,0"
-                                Padding="0,8,0,0"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                BorderThickness="0,1,0,0">
-                            <WrapPanel Orientation="Horizontal">
-                            <Button Content="Save"
-                                    MinWidth="52"
-                                    Style="{StaticResource AccentButtonStyle}"
-                                    Command="{Binding SaveSelectedCommand}" />
-                            <Button Content="Done"
-                                    MinWidth="52"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding CompleteSelectedCommand}" />
-                            <Button Content="Delete"
-                                    MinWidth="62"
-                                    Style="{StaticResource DestructiveButtonStyle}"
-                                    Command="{Binding DeleteSelectedCommand}" />
-                            </WrapPanel>
-                        </Border>
-                    </StackPanel>
                 </Border>
             </Grid>
 

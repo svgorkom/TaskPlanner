@@ -6,11 +6,14 @@ public sealed class NoteViewModel : ObservableObject
 {
     private string text;
 
-    public NoteViewModel(TaskNote note)
+    public NoteViewModel(Guid taskId, TaskNote note)
     {
+        TaskId = taskId;
         Id = note.Id;
         text = note.Text;
     }
+
+    public Guid TaskId { get; }
 
     public Guid Id { get; }
 
