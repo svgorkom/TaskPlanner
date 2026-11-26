@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using TaskPlanner.Application.Abstractions;
+using TaskPlanner.Application.Pomodoro;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
 using TaskPlanner.Application.Topics;
@@ -60,7 +61,8 @@ public partial class App : WpfApplication
                 Activation = settings.Activation,
                 Panel = settings.Panel,
                 StartWithWindows = startWithWindows,
-                Theme = settings.Theme
+                Theme = settings.Theme,
+                Pomodoro = settings.Pomodoro
             };
             await settingsStore.SaveAsync(settings, CancellationToken.None);
         }
@@ -68,7 +70,29 @@ public partial class App : WpfApplication
         ThemeManager themeManager = new();
         themeManager.Apply(settings.Theme);
 
-        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, topicService, settings.Theme, settings.StartWithWindows);
+        PomodoroViewModel pomodoroViewModel = new(new PomodoroTimer(clock, settings.Pomodoro));
+        pomodoroViewModel.SettingsChanged += async (_, pomodoroSettings) =>
+        {
+            try
+            {
+                UserSettings updatedSettings = new()
+                {
+                    Activation = settings.Activation,
+                    Panel = settings.Panel,
+                    StartWithWindows = settings.StartWithWindows,
+                    Theme = settings.Theme,
+                    Pomodoro = pomodoroSettings
+                };
+                await settingsStore.SaveAsync(updatedSettings, CancellationToken.None);
+                settings = updatedSettings;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.LogException("Saving pomodoro settings failed", ex);
+            }
+        };
+
+        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, topicService, settings.Theme, settings.StartWithWindows, pomodoroViewModel);
         viewModel.ThemeModeChanged += async (_, themeMode) =>
         {
             themeManager.Apply(themeMode);
@@ -77,7 +101,8 @@ public partial class App : WpfApplication
                 Activation = settings.Activation,
                 Panel = settings.Panel,
                 StartWithWindows = settings.StartWithWindows,
-                Theme = themeMode
+                Theme = themeMode,
+                Pomodoro = settings.Pomodoro
             };
             await settingsStore.SaveAsync(updatedSettings, CancellationToken.None);
             settings = updatedSettings;
@@ -92,7 +117,8 @@ public partial class App : WpfApplication
                     Activation = settings.Activation,
                     Panel = settings.Panel,
                     StartWithWindows = enabled,
-                    Theme = settings.Theme
+                    Theme = settings.Theme,
+                    Pomodoro = settings.Pomodoro
                 };
                 await settingsStore.SaveAsync(updatedSettings, CancellationToken.None);
                 settings = updatedSettings;

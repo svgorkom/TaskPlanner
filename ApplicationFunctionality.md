@@ -24,6 +24,19 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - Users can attach any number of free-text notes to a task from its inline editor, and add, edit, or delete each note independently without a separate save step.
 - A truncated preview of a task's notes is shown directly in the task list overview, in smaller muted italic text below the task title.
 
+## Pomodoro timer
+
+- The panel contains a single, general pomodoro timer; it is not linked to individual tasks.
+- The timer cycles through Focus, Short break, and Long break phases. After every configured number of completed focus sessions the next break is a long break; otherwise it is a short break. After any break the next phase is Focus.
+- The timer shows the current phase, the remaining time (mm:ss), a progress bar for the current phase, and the number of focus sessions completed since the application started.
+- Users can start, pause, and resume the current phase, restart it from its full length, or skip to the next phase. A skipped focus session does not count as completed.
+- When a phase reaches zero, Task Planner plays a system sound and shows a tray notification. The next phase is prepared but does not start until the user starts it.
+- The timer keeps running while the panel is hidden. While a phase is running or paused, the tray icon tooltip shows the phase and remaining time.
+- The remaining time is based on the wall clock, so it stays correct if the computer sleeps or the application is busy; a phase that ended during sleep is reported on wake.
+- Users can change the focus, short break, and long break durations (1–180 minutes) and the number of focus sessions before a long break (1–12) from the timer's settings. Defaults are 25, 5, and 15 minutes with a long break every 4 sessions.
+- Changed durations are persisted between application launches. A phase that is already running or paused keeps its current length; the new durations apply from the next phase that starts.
+- The completed-session count and the timer state are not persisted; they reset when the application restarts.
+
 ## Panel behavior
 
 - The panel can be shown or hidden with `Ctrl+Shift+Space`.

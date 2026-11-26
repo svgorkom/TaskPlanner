@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
+using TaskPlanner.Application.Pomodoro;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.App.Diagnostics;
 using TaskPlanner.App.ViewModels;
@@ -71,6 +72,15 @@ public partial class MainWindow : Window
             ContextMenuStrip = BuildTrayMenu()
         };
         notifyIcon.DoubleClick += (_, _) => TogglePanel();
+        viewModel.Pomodoro.PhaseCompleted += (_, completed) => ShowPomodoroNotification(completed);
+        viewModel.Pomodoro.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(PomodoroViewModel.TrayText))
+            {
+                string text = viewModel.Pomodoro.TrayText;
+                notifyIcon.Text = text.Length > 63 ? text[..63] : text;
+            }
+        };
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
     }
@@ -115,6 +125,18 @@ public partial class MainWindow : Window
         {
             FileLogger.LogException("ShowPanel failed", ex);
         }
+    }
+
+    private void ShowPomodoroNotification(PomodoroPhaseCompleted completed)
+    {
+        (string title, string message) = completed.CompletedPhase == PomodoroPhase.Focus
+            ? ("Focus session done", completed.NextPhase == PomodoroPhase.LongBreak
+                ? $"{completed.CompletedFocusSessions} pomodoros done. Time for a long break."
+                : "Time for a short break.")
+            : ("Break is over", "Ready for the next focus session.");
+
+        System.Media.SystemSounds.Asterisk.Play();
+        notifyIcon.ShowBalloonTip(5000, title, message, Forms.ToolTipIcon.Info);
     }
 
     private Forms.ContextMenuStrip BuildTrayMenu()

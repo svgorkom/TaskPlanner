@@ -1,4 +1,6 @@
 ﻿using TaskPlanner.Application.Abstractions;
+using TaskPlanner.Application.Pomodoro;
+using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
 using TaskPlanner.Application.Topics;
 using TaskPlanner.Domain.Tasks;
@@ -17,6 +19,12 @@ await runner.RunAsync("tasks can be assigned and filtered by one topic", TasksCa
 await runner.RunAsync("topics can be renamed", TopicsCanBeRenamedAsync);
 await runner.RunAsync("renaming a topic rejects duplicate names", RenamingATopicRejectsDuplicateNamesAsync);
 await runner.RunAsync("deleting a topic clears assignments", DeletingATopicClearsAssignmentsAsync);
+await runner.RunAsync("pomodoro focus completes into short break", PomodoroFocusCompletesIntoShortBreakAsync);
+await runner.RunAsync("pomodoro long break follows configured session count", PomodoroLongBreakFollowsSessionCountAsync);
+await runner.RunAsync("pomodoro pause freezes remaining time", PomodoroPauseFreezesRemainingTimeAsync);
+await runner.RunAsync("pomodoro skip does not count focus session", PomodoroSkipDoesNotCountFocusAsync);
+await runner.RunAsync("pomodoro settings apply to ready phase only", PomodoroSettingsApplyToReadyPhaseOnlyAsync);
+await runner.RunAsync("pomodoro settings are clamped", PomodoroSettingsAreClampedAsync);
 
 runner.ThrowIfFailed();
 
@@ -226,6 +234,125 @@ static async Task RenamingATopicRejectsDuplicateNamesAsync()
         () => topicService.RenameAsync(secondTopic.Id, firstTopic.Name, CancellationToken.None));
 }
 
+static Task PomodoroFocusCompletesIntoShortBreakAsync()
+{
+    MutableClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+    PomodoroTimer timer = new(clock, new PomodoroSettings());
+
+    timer.Start();
+    clock.Advance(TimeSpan.FromMinutes(24));
+    Assert.Equal<PomodoroPhaseCompleted?>(null, timer.Update());
+    Assert.Equal(TimeSpan.FromMinutes(1), timer.Remaining);
+
+    clock.Advance(TimeSpan.FromMinutes(1));
+    PomodoroPhaseCompleted? completed = timer.Update();
+
+    Assert.Equal(new PomodoroPhaseCompleted(PomodoroPhase.Focus, PomodoroPhase.ShortBreak, 1), completed);
+    Assert.Equal(PomodoroStatus.Ready, timer.Status);
+    Assert.Equal(TimeSpan.FromMinutes(5), timer.Remaining);
+    Assert.Equal<PomodoroPhaseCompleted?>(null, timer.Update());
+
+    return Task.CompletedTask;
+}
+
+static Task PomodoroLongBreakFollowsSessionCountAsync()
+{
+    MutableClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+    PomodoroTimer timer = new(clock, new PomodoroSettings { FocusMinutes = 10, ShortBreakMinutes = 2, LongBreakMinutes = 20, SessionsBeforeLongBreak = 2 });
+
+    PomodoroPhase RunPhase()
+    {
+        timer.Start();
+        clock.Advance(timer.Remaining);
+        return timer.Update()!.NextPhase;
+    }
+
+    Assert.Equal(PomodoroPhase.ShortBreak, RunPhase());
+    Assert.Equal(PomodoroPhase.Focus, RunPhase());
+    Assert.Equal(PomodoroPhase.LongBreak, RunPhase());
+    Assert.Equal(TimeSpan.FromMinutes(20), timer.Remaining);
+    Assert.Equal(PomodoroPhase.Focus, RunPhase());
+    Assert.Equal(2, timer.CompletedFocusSessions);
+
+    return Task.CompletedTask;
+}
+
+static Task PomodoroPauseFreezesRemainingTimeAsync()
+{
+    MutableClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+    PomodoroTimer timer = new(clock, new PomodoroSettings());
+
+    timer.Start();
+    clock.Advance(TimeSpan.FromMinutes(10));
+    timer.Pause();
+    clock.Advance(TimeSpan.FromHours(2));
+
+    Assert.Equal(PomodoroStatus.Paused, timer.Status);
+    Assert.Equal(TimeSpan.FromMinutes(15), timer.Remaining);
+    Assert.Equal<PomodoroPhaseCompleted?>(null, timer.Update());
+
+    timer.Start();
+    clock.Advance(TimeSpan.FromMinutes(5));
+    Assert.Equal(TimeSpan.FromMinutes(10), timer.Remaining);
+
+    timer.Reset();
+    Assert.Equal(PomodoroStatus.Ready, timer.Status);
+    Assert.Equal(TimeSpan.FromMinutes(25), timer.Remaining);
+
+    return Task.CompletedTask;
+}
+
+static Task PomodoroSkipDoesNotCountFocusAsync()
+{
+    MutableClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+    PomodoroTimer timer = new(clock, new PomodoroSettings { SessionsBeforeLongBreak = 1 });
+
+    timer.Start();
+    timer.Skip();
+
+    Assert.Equal(PomodoroPhase.ShortBreak, timer.Phase);
+    Assert.Equal(0, timer.CompletedFocusSessions);
+
+    timer.Skip();
+    Assert.Equal(PomodoroPhase.Focus, timer.Phase);
+
+    return Task.CompletedTask;
+}
+
+static Task PomodoroSettingsApplyToReadyPhaseOnlyAsync()
+{
+    MutableClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+    PomodoroTimer timer = new(clock, new PomodoroSettings());
+
+    timer.UpdateSettings(new PomodoroSettings { FocusMinutes = 50 });
+    Assert.Equal(TimeSpan.FromMinutes(50), timer.Remaining);
+
+    timer.Start();
+    clock.Advance(TimeSpan.FromMinutes(10));
+    timer.UpdateSettings(new PomodoroSettings { FocusMinutes = 30 });
+    Assert.Equal(TimeSpan.FromMinutes(40), timer.Remaining);
+
+    return Task.CompletedTask;
+}
+
+static Task PomodoroSettingsAreClampedAsync()
+{
+    PomodoroSettings normalized = new PomodoroSettings
+    {
+        FocusMinutes = 0,
+        ShortBreakMinutes = -5,
+        LongBreakMinutes = 999,
+        SessionsBeforeLongBreak = 0
+    }.Normalize();
+
+    Assert.Equal(PomodoroSettings.MinMinutes, normalized.FocusMinutes);
+    Assert.Equal(PomodoroSettings.MinMinutes, normalized.ShortBreakMinutes);
+    Assert.Equal(PomodoroSettings.MaxMinutes, normalized.LongBreakMinutes);
+    Assert.Equal(PomodoroSettings.MinSessionsBeforeLongBreak, normalized.SessionsBeforeLongBreak);
+
+    return Task.CompletedTask;
+}
+
 internal sealed class TestRunner
 {
     private int failureCount;
@@ -287,6 +414,21 @@ internal sealed class FixedClock : IClock
     }
 
     public DateTimeOffset Now { get; }
+}
+
+internal sealed class MutableClock : IClock
+{
+    public MutableClock(DateTimeOffset now)
+    {
+        Now = now;
+    }
+
+    public DateTimeOffset Now { get; private set; }
+
+    public void Advance(TimeSpan duration)
+    {
+        Now += duration;
+    }
 }
 
 internal sealed class MemoryTaskRepository : ITaskRepository
