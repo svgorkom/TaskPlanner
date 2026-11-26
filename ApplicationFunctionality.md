@@ -1,4 +1,4 @@
-# Task Planner functionality
+﻿# Task Planner functionality
 
 Task Planner is a Windows desktop task planning overlay. It runs as a tray-backed WPF application and keeps the main panel hidden until opened from the tray icon or the global keyboard shortcut.
 
@@ -35,7 +35,6 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - The status line also shows the word and character count of the current note.
 - Closing an empty note deletes it immediately. Closing a note that has content or a custom title asks for confirmation in the panel first; Escape cancels the confirmation or an open rename.
 - When there are no notes, the Notes view shows an empty state with a New note button.
-- Notes are stored on disk with atomic writes, so an interrupted save never leaves a damaged notes file.
 - Undo (`Ctrl+Z`) works within the current note only.
 
 ## Pomodoro timer
@@ -71,3 +70,8 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - When enabled, Task Planner registers itself for the current Windows user only.
 - When disabled, Task Planner removes its current-user startup registration.
 - The startup preference is persisted and reflected in the UI on later launches.
+
+## Data storage
+
+- Tasks, topics, notes, and settings are stored as JSON files in the user's local application data folder (`%LOCALAPPDATA%\TaskPlanner`).
+- Every file is written atomically: data is first written to a temporary file and then replaces the original in one step. A crash or power loss during a save leaves the previous version intact instead of an empty or damaged file.

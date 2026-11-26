@@ -7,6 +7,7 @@ using TaskPlanner.Application.Topics;
 using TaskPlanner.Domain.Notes;
 using TaskPlanner.Domain.Tasks;
 using TaskPlanner.Infrastructure.Persistence;
+using TaskPlanner.Infrastructure.Settings;
 using TaskPlanner.Domain.Topics;
 
 TestRunner runner = new();
@@ -33,6 +34,7 @@ await runner.RunAsync("long note titles are truncated", LongNoteTitlesAreTruncat
 await runner.RunAsync("notes are created at the end and can be reordered", NotesAreCreatedAtEndAndReorderedAsync);
 await runner.RunAsync("note content and title updates are saved", NoteContentAndTitleUpdatesAreSavedAsync);
 await runner.RunAsync("file note repository round-trips and leaves no temp file", FileNoteRepositoryRoundTripsAsync);
+await runner.RunAsync("task, topic and settings files are written atomically", TaskTopicAndSettingsFilesAreWrittenAtomicallyAsync);
 
 runner.ThrowIfFailed();
 
@@ -445,6 +447,45 @@ static async Task FileNoteRepositoryRoundTripsAsync()
         Assert.Equal("Line one\nLine two", saved.Content);
         Assert.Equal("Custom", saved.CustomTitle);
         Assert.Equal(false, File.Exists(filePath + ".tmp"));
+    }
+    finally
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+}
+
+static async Task TaskTopicAndSettingsFilesAreWrittenAtomicallyAsync()
+{
+    string directory = Path.Combine(Path.GetTempPath(), "TaskPlannerTests", Guid.NewGuid().ToString("N"));
+    string tasksPath = Path.Combine(directory, "tasks.json");
+    string topicsPath = Path.Combine(directory, "topics.json");
+    string settingsPath = Path.Combine(directory, "settings.json");
+
+    try
+    {
+        FixedClock clock = new(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero));
+        FileTaskRepository taskRepository = new(tasksPath);
+        TopicService topicService = new(new FileTopicRepository(topicsPath), taskRepository, clock);
+        TaskService taskService = new(taskRepository, new NoopReminderScheduler(), clock);
+
+        // Write twice so the second write replaces an existing file.
+        TaskTopic topic = await topicService.CreateAsync("Work", CancellationToken.None);
+        await topicService.RenameAsync(topic.Id, "Office", CancellationToken.None);
+        await taskService.CreateAsync(new QuickTaskParser(clock).Parse("First"), CancellationToken.None);
+        await taskService.CreateAsync(new QuickTaskParser(clock).Parse("Second"), CancellationToken.None);
+
+        FileUserSettingsStore settingsStore = new(settingsPath);
+        await Task.WhenAll(
+            settingsStore.SaveAsync(new UserSettings { Theme = ThemeMode.Dark }, CancellationToken.None),
+            settingsStore.SaveAsync(new UserSettings { Pomodoro = new PomodoroSettings { FocusMinutes = 50 } }, CancellationToken.None));
+
+        Assert.Equal(2, (await new FileTaskRepository(tasksPath).ListAsync(CancellationToken.None)).Count);
+        Assert.Equal("Office", (await new FileTopicRepository(topicsPath).ListAsync(CancellationToken.None)).Single().Name);
+        Assert.Equal(50, (await settingsStore.LoadAsync(CancellationToken.None)).Pomodoro.FocusMinutes);
+        Assert.Equal(0, Directory.GetFiles(directory, "*.tmp").Length);
     }
     finally
     {

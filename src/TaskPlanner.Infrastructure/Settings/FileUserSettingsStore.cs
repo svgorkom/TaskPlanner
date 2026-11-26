@@ -1,6 +1,7 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using TaskPlanner.Application.Settings;
+using TaskPlanner.Infrastructure.Persistence;
 
 namespace TaskPlanner.Infrastructure.Settings;
 
@@ -13,6 +14,9 @@ public sealed class FileUserSettingsStore
     };
 
     private readonly string filePath;
+
+    // Theme, startup and pomodoro changes can each trigger a save; never let two writes overlap.
+    private readonly SemaphoreSlim gate = new(1, 1);
 
     public FileUserSettingsStore(string filePath)
     {
@@ -33,14 +37,17 @@ public sealed class FileUserSettingsStore
 
     public async Task SaveAsync(UserSettings settings, CancellationToken cancellationToken)
     {
-        string? directory = Path.GetDirectoryName(filePath);
-
-        if (!string.IsNullOrWhiteSpace(directory))
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            Directory.CreateDirectory(directory);
+            await AtomicFile.WriteAsync(
+                filePath,
+                (stream, token) => JsonSerializer.SerializeAsync(stream, settings, JsonSerializerOptions, token),
+                cancellationToken);
         }
-
-        await using FileStream stream = File.Create(filePath);
-        await JsonSerializer.SerializeAsync(stream, settings, JsonSerializerOptions, cancellationToken);
+        finally
+        {
+            gate.Release();
+        }
     }
 }
