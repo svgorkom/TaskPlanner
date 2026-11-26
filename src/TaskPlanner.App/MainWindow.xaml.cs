@@ -53,6 +53,8 @@ public partial class MainWindow : Window
     private TaskListItemViewModel? draggedTask;
     private WpfPoint topicDragStartPoint;
     private TopicGroupViewModel? draggedTopic;
+    private WpfPoint noteDragStartPoint;
+    private NotePageViewModel? draggedNote;
 
     public MainWindow(MainViewModel viewModel, UserSettings settings)
     {
@@ -72,6 +74,19 @@ public partial class MainWindow : Window
             ContextMenuStrip = BuildTrayMenu()
         };
         notifyIcon.DoubleClick += (_, _) => TogglePanel();
+        viewModel.Notes.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(NotesViewModel.SelectedPage))
+            {
+                // One editor serves all tabs; clear its undo history so Ctrl+Z
+                // can never bring another note's text into this one.
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+                {
+                    NoteEditor.IsUndoEnabled = false;
+                    NoteEditor.IsUndoEnabled = true;
+                });
+            }
+        };
         viewModel.Pomodoro.PhaseCompleted += (_, completed) => ShowPomodoroNotification(completed);
         viewModel.Pomodoro.PropertyChanged += (_, args) =>
         {
@@ -87,6 +102,11 @@ public partial class MainWindow : Window
 
     public void HidePanel()
     {
+        if (DataContext is MainViewModel viewModel)
+        {
+            _ = viewModel.Notes.FlushAsync();
+        }
+
         Hide();
     }
 
@@ -112,7 +132,14 @@ public partial class MainWindow : Window
                         SetForegroundWindow(handle);
                         Activate();
                         Focus();
-                        Keyboard.Focus(QuickAddBox);
+                        if (DataContext is MainViewModel { IsNotesView: true })
+                        {
+                            Keyboard.Focus(NoteEditor);
+                        }
+                        else
+                        {
+                            Keyboard.Focus(QuickAddBox);
+                        }
                         FileLogger.Log("ShowPanel foreground activation complete.");
                     }
                     catch (Exception ex)
@@ -148,8 +175,21 @@ public partial class MainWindow : Window
         return menu;
     }
 
-    private static void ExitApplication()
+    private async void ExitApplication()
     {
+        try
+        {
+            if (DataContext is MainViewModel viewModel)
+            {
+                // Write pending note edits before the process goes away.
+                await viewModel.Notes.FlushAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            FileLogger.LogException("Flushing notes on exit failed", ex);
+        }
+
         System.Windows.Application.Current.Shutdown();
     }
 
@@ -311,6 +351,12 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
+            if (DataContext is MainViewModel viewModel && viewModel.Notes.CancelInlineEdit())
+            {
+                e.Handled = true;
+                return;
+            }
+
             HidePanel();
             e.Handled = true;
         }
@@ -404,6 +450,85 @@ public partial class MainWindow : Window
         }
 
         await viewModel.UpdateNoteAsync(note, CancellationToken.None);
+    }
+
+    private void NoteTab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        noteDragStartPoint = e.GetPosition(null);
+        draggedNote = (sender as FrameworkElement)?.DataContext as NotePageViewModel;
+
+        if (e.ClickCount == 2 && draggedNote is not null && !draggedNote.IsRenaming
+            && DataContext is MainViewModel viewModel)
+        {
+            draggedNote = null;
+            viewModel.Notes.StartRenameCommand.Execute((sender as FrameworkElement)?.DataContext);
+            e.Handled = true;
+        }
+    }
+
+    private void NoteTab_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || draggedNote is null || draggedNote.IsRenaming)
+        {
+            return;
+        }
+
+        WpfPoint currentPosition = e.GetPosition(null);
+        if (Math.Abs(currentPosition.X - noteDragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(currentPosition.Y - noteDragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        NotePageViewModel source = draggedNote;
+        DragDrop.DoDragDrop((DependencyObject)sender, source, System.Windows.DragDropEffects.Move);
+        draggedNote = null;
+    }
+
+    private async void NoteTab_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(NotePageViewModel)) is not NotePageViewModel source ||
+            (sender as FrameworkElement)?.DataContext is not NotePageViewModel target ||
+            DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await viewModel.Notes.ReorderAsync(source.Id, target.Id);
+    }
+
+    private void NoteRenameBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox { IsVisible: true } textBox)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            });
+        }
+    }
+
+    private async void NoteRenameBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter
+            && (sender as FrameworkElement)?.DataContext is NotePageViewModel page
+            && DataContext is MainViewModel viewModel)
+        {
+            e.Handled = true;
+            await viewModel.Notes.CommitRenameAsync(page);
+            Keyboard.Focus(NoteEditor);
+        }
+    }
+
+    private async void NoteRenameBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is NotePageViewModel page
+            && DataContext is MainViewModel viewModel)
+        {
+            await viewModel.Notes.CommitRenameAsync(page);
+        }
     }
 
     private static T? FindVisualParent<T>(DependencyObject? child)

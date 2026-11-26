@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using TaskPlanner.Application.Abstractions;
+using TaskPlanner.Application.Notes;
 using TaskPlanner.Application.Pomodoro;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
@@ -45,10 +46,12 @@ public partial class App : WpfApplication
         ITaskRepository taskRepository = new FileTaskRepository(Path.Combine(appDataPath, "tasks.json"));
         ITopicRepository topicRepository = new FileTopicRepository(Path.Combine(appDataPath, "topics.json"));
         IReminderScheduler reminderScheduler = new InMemoryReminderScheduler();
+        INoteRepository noteRepository = new FileNoteRepository(Path.Combine(appDataPath, "notes.json"));
         FileUserSettingsStore settingsStore = new(Path.Combine(appDataPath, "settings.json"));
 
         TaskService taskService = new(taskRepository, reminderScheduler, clock);
         TopicService topicService = new(topicRepository, taskRepository, clock);
+        NoteService noteService = new(noteRepository, clock);
         TaskQueryService taskQueryService = new(taskRepository, clock);
         QuickTaskParser quickTaskParser = new(clock);
         UserSettings settings = await settingsStore.LoadAsync(CancellationToken.None);
@@ -92,7 +95,7 @@ public partial class App : WpfApplication
             }
         };
 
-        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, topicService, settings.Theme, settings.StartWithWindows, pomodoroViewModel);
+        MainViewModel viewModel = new(taskService, taskQueryService, quickTaskParser, topicService, settings.Theme, settings.StartWithWindows, pomodoroViewModel, new NotesViewModel(noteService));
         viewModel.ThemeModeChanged += async (_, themeMode) =>
         {
             themeManager.Apply(themeMode);

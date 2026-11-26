@@ -1,9 +1,12 @@
 ﻿using TaskPlanner.Application.Abstractions;
+using TaskPlanner.Application.Notes;
 using TaskPlanner.Application.Pomodoro;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
 using TaskPlanner.Application.Topics;
+using TaskPlanner.Domain.Notes;
 using TaskPlanner.Domain.Tasks;
+using TaskPlanner.Infrastructure.Persistence;
 using TaskPlanner.Domain.Topics;
 
 TestRunner runner = new();
@@ -25,6 +28,11 @@ await runner.RunAsync("pomodoro pause freezes remaining time", PomodoroPauseFree
 await runner.RunAsync("pomodoro skip does not count focus session", PomodoroSkipDoesNotCountFocusAsync);
 await runner.RunAsync("pomodoro settings apply to ready phase only", PomodoroSettingsApplyToReadyPhaseOnlyAsync);
 await runner.RunAsync("pomodoro settings are clamped", PomodoroSettingsAreClampedAsync);
+await runner.RunAsync("note title follows first line until renamed", NoteTitleFollowsFirstLineUntilRenamedAsync);
+await runner.RunAsync("long note titles are truncated", LongNoteTitlesAreTruncatedAsync);
+await runner.RunAsync("notes are created at the end and can be reordered", NotesAreCreatedAtEndAndReorderedAsync);
+await runner.RunAsync("note content and title updates are saved", NoteContentAndTitleUpdatesAreSavedAsync);
+await runner.RunAsync("file note repository round-trips and leaves no temp file", FileNoteRepositoryRoundTripsAsync);
 
 runner.ThrowIfFailed();
 
@@ -353,6 +361,100 @@ static Task PomodoroSettingsAreClampedAsync()
     return Task.CompletedTask;
 }
 
+static Task NoteTitleFollowsFirstLineUntilRenamedAsync()
+{
+    DateTimeOffset now = new(2026, 11, 26, 9, 0, 0, TimeSpan.Zero);
+    NotePage note = NotePage.Create(now);
+
+    Assert.Equal(NotePage.DefaultTitle, note.DisplayTitle);
+
+    note.UpdateContent("\n\n  # Shopping list  \nmilk\neggs", now);
+    Assert.Equal("Shopping list", note.DisplayTitle);
+
+    note.SetCustomTitle("  Groceries ", now);
+    Assert.Equal("Groceries", note.CustomTitle);
+    Assert.Equal("Groceries", note.DisplayTitle);
+
+    note.SetCustomTitle("   ", now);
+    Assert.Equal<string?>(null, note.CustomTitle);
+    Assert.Equal("Shopping list", note.DisplayTitle);
+
+    return Task.CompletedTask;
+}
+
+static Task LongNoteTitlesAreTruncatedAsync()
+{
+    string title = NotePage.ResolveTitle(null, new string('a', 100));
+
+    Assert.Equal(NotePage.MaxTitleLength, title.Length);
+    Assert.Equal('…', title[^1]);
+
+    return Task.CompletedTask;
+}
+
+static async Task NotesAreCreatedAtEndAndReorderedAsync()
+{
+    NoteService service = new(new MemoryNoteRepository(), new FixedClock(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero)));
+
+    NotePage first = await service.CreateAsync(CancellationToken.None);
+    NotePage second = await service.CreateAsync(CancellationToken.None);
+    NotePage third = await service.CreateAsync(CancellationToken.None);
+
+    Assert.Equal(string.Join(",", new[] { first.Id, second.Id, third.Id }), string.Join(",", (await service.ListAsync(CancellationToken.None)).Select(note => note.Id)));
+
+    await service.ReorderAsync([third.Id, first.Id, second.Id], CancellationToken.None);
+    Assert.Equal(string.Join(",", new[] { third.Id, first.Id, second.Id }), string.Join(",", (await service.ListAsync(CancellationToken.None)).Select(note => note.Id)));
+
+    await Assert.ThrowsAsync<ArgumentException>(() => service.ReorderAsync([third.Id, first.Id], CancellationToken.None));
+
+    await service.DeleteAsync(first.Id, CancellationToken.None);
+    Assert.Equal(2, (await service.ListAsync(CancellationToken.None)).Count);
+}
+
+static async Task NoteContentAndTitleUpdatesAreSavedAsync()
+{
+    NoteService service = new(new MemoryNoteRepository(), new FixedClock(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero)));
+    NotePage note = await service.CreateAsync(CancellationToken.None);
+
+    await service.UpdateContentAsync(note.Id, "Meeting notes\nAction items", CancellationToken.None);
+    await service.SetTitleAsync(note.Id, "Standup", CancellationToken.None);
+
+    NotePage saved = (await service.ListAsync(CancellationToken.None)).Single();
+    Assert.Equal("Meeting notes\nAction items", saved.Content);
+    Assert.Equal("Standup", saved.DisplayTitle);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateContentAsync(Guid.NewGuid(), "x", CancellationToken.None));
+}
+
+static async Task FileNoteRepositoryRoundTripsAsync()
+{
+    string directory = Path.Combine(Path.GetTempPath(), "TaskPlannerTests", Guid.NewGuid().ToString("N"));
+    string filePath = Path.Combine(directory, "notes.json");
+
+    try
+    {
+        NoteService service = new(new FileNoteRepository(filePath), new FixedClock(new DateTimeOffset(2026, 11, 26, 9, 0, 0, TimeSpan.Zero)));
+        NotePage note = await service.CreateAsync(CancellationToken.None);
+        await service.UpdateContentAsync(note.Id, "Line one\nLine two", CancellationToken.None);
+        await service.SetTitleAsync(note.Id, "Custom", CancellationToken.None);
+
+        NoteService reloaded = new(new FileNoteRepository(filePath), new FixedClock(DateTimeOffset.UtcNow));
+        NotePage saved = (await reloaded.ListAsync(CancellationToken.None)).Single();
+
+        Assert.Equal(note.Id, saved.Id);
+        Assert.Equal("Line one\nLine two", saved.Content);
+        Assert.Equal("Custom", saved.CustomTitle);
+        Assert.Equal(false, File.Exists(filePath + ".tmp"));
+    }
+    finally
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+}
+
 internal sealed class TestRunner
 {
     private int failureCount;
@@ -502,6 +604,43 @@ internal sealed class NoopReminderScheduler : IReminderScheduler
     public Task CancelAsync(Guid taskId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class MemoryNoteRepository : INoteRepository
+{
+    private readonly Dictionary<Guid, NotePage> notes = [];
+
+    public Task<IReadOnlyCollection<NotePage>> ListAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyCollection<NotePage>>(notes.Values.ToArray());
+    }
+
+    public Task SaveAsync(NotePage note, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        notes[note.Id] = note;
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        notes.Remove(id);
+        return Task.CompletedTask;
+    }
+
+    public Task SaveAllAsync(IReadOnlyCollection<NotePage> noteItems, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        notes.Clear();
+        foreach (NotePage note in noteItems)
+        {
+            notes[note.Id] = note;
+        }
+
         return Task.CompletedTask;
     }
 }
