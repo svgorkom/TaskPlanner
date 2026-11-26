@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows.Input;
 using TaskPlanner.Application.Settings;
 using TaskPlanner.Application.Tasks;
@@ -31,8 +31,10 @@ public sealed class MainViewModel : ObservableObject
         QuickTaskParser quickTaskParser,
         TopicService topicService,
         ThemeMode selectedThemeMode,
-        bool startWithWindows)
+        bool startWithWindows,
+        PomodoroViewModel pomodoro)
     {
+        Pomodoro = pomodoro;
         this.taskService = taskService;
         this.taskQueryService = taskQueryService;
         this.quickTaskParser = quickTaskParser;
@@ -65,6 +67,8 @@ public sealed class MainViewModel : ObservableObject
     public event EventHandler<ThemeMode>? ThemeModeChanged;
 
     public event EventHandler<bool>? StartWithWindowsChanged;
+
+    public PomodoroViewModel Pomodoro { get; }
 
     public ObservableCollection<TaskListItemViewModel> Tasks { get; } = [];
 

@@ -9,4 +9,6 @@ public sealed class UserSettings
     public bool StartWithWindows { get; init; }
 
     public ThemeMode Theme { get; init; } = ThemeMode.System;
+
+    public PomodoroSettings Pomodoro { get; init; } = new();
 }
