@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using TaskPlanner.Application.Abstractions;
 using TaskPlanner.Domain.Tasks;
 
@@ -109,18 +109,13 @@ public sealed class FileTaskRepository : ITaskRepository
         return taskDtos?.Select(ToDomain).ToArray() ?? [];
     }
 
-    private async Task SaveAllCoreAsync(IReadOnlyCollection<TaskItem> tasks, CancellationToken cancellationToken)
+    private Task SaveAllCoreAsync(IReadOnlyCollection<TaskItem> tasks, CancellationToken cancellationToken)
     {
-        string? directory = Path.GetDirectoryName(filePath);
-
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await using FileStream stream = File.Create(filePath);
         TaskItemDto[] taskDtos = tasks.Select(ToDto).ToArray();
-        await JsonSerializer.SerializeAsync(stream, taskDtos, JsonSerializerOptions, cancellationToken);
+        return AtomicFile.WriteAsync(
+            filePath,
+            (stream, token) => JsonSerializer.SerializeAsync(stream, taskDtos, JsonSerializerOptions, token),
+            cancellationToken);
     }
 
     private static TaskItem ToDomain(TaskItemDto dto)

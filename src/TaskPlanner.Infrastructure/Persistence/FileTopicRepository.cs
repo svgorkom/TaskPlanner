@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using TaskPlanner.Application.Abstractions;
 using TaskPlanner.Domain.Topics;
 
@@ -96,16 +96,13 @@ public sealed class FileTopicRepository : ITopicRepository
         return topics?.Select(ToDomain).ToArray() ?? [];
     }
 
-    private async Task SaveAllCoreAsync(IReadOnlyCollection<TaskTopic> topics, CancellationToken cancellationToken)
+    private Task SaveAllCoreAsync(IReadOnlyCollection<TaskTopic> topics, CancellationToken cancellationToken)
     {
-        string? directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await using FileStream stream = File.Create(filePath);
-        await JsonSerializer.SerializeAsync(stream, topics.Select(ToDto).ToArray(), JsonSerializerOptions, cancellationToken);
+        TopicDto[] topicDtos = topics.Select(ToDto).ToArray();
+        return AtomicFile.WriteAsync(
+            filePath,
+            (stream, token) => JsonSerializer.SerializeAsync(stream, topicDtos, JsonSerializerOptions, token),
+            cancellationToken);
     }
 
     private static TaskTopic ToDomain(TopicDto dto)
