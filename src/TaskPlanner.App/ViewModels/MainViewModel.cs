@@ -24,6 +24,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly Dictionary<Guid, bool> topicExpansionStates = [];
     private readonly Dictionary<Guid, bool> taskExpansionStates = [];
     private bool noTopicExpanded = true;
+    private bool isNotesView;
 
     public MainViewModel(
         TaskService taskService,
@@ -32,9 +33,11 @@ public sealed class MainViewModel : ObservableObject
         TopicService topicService,
         ThemeMode selectedThemeMode,
         bool startWithWindows,
-        PomodoroViewModel pomodoro)
+        PomodoroViewModel pomodoro,
+        NotesViewModel notes)
     {
         Pomodoro = pomodoro;
+        Notes = notes;
         this.taskService = taskService;
         this.taskQueryService = taskQueryService;
         this.quickTaskParser = quickTaskParser;
@@ -69,6 +72,31 @@ public sealed class MainViewModel : ObservableObject
     public event EventHandler<bool>? StartWithWindowsChanged;
 
     public PomodoroViewModel Pomodoro { get; }
+
+    public NotesViewModel Notes { get; }
+
+    /// <summary>True when the panel shows the notes instead of the task list.</summary>
+    public bool IsNotesView
+    {
+        get => isNotesView;
+        set
+        {
+            if (SetProperty(ref isNotesView, value))
+            {
+                RaisePropertyChanged(nameof(IsTasksView));
+                if (!value)
+                {
+                    _ = Notes.FlushAsync();
+                }
+            }
+        }
+    }
+
+    public bool IsTasksView
+    {
+        get => !isNotesView;
+        set => IsNotesView = !value;
+    }
 
     public ObservableCollection<TaskListItemViewModel> Tasks { get; } = [];
 

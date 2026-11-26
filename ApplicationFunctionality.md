@@ -24,6 +24,20 @@ Task Planner is a Windows desktop task planning overlay. It runs as a tray-backe
 - Users can attach any number of free-text notes to a task from its inline editor, and add, edit, or delete each note independently without a separate save step.
 - A truncated preview of a task's notes is shown directly in the task list overview, in smaller muted italic text below the task title.
 
+## Notes
+
+- Below the header, a Tasks | Notes switch chooses what the panel shows. The Tasks view shows the task capture, topic management, and task list; the Notes view shows a notepad. The pomodoro timer is visible in both views.
+- Notes are free-form plain-text pages, independent of tasks and of the notes attached to individual tasks.
+- Each note is shown as a tab. Users can open a new note with the + button or `Ctrl+T`, and close the current note with its ✕ button or `Ctrl+W`.
+- A tab's title is the note's first non-empty line (simple prefixes such as `#`, `-`, `*` are ignored), or "New note" while the note is empty. Users can give a tab its own title by double-clicking it or choosing Rename from its context menu; an empty title, or "Use first line as title", switches back to the first line. Long titles are shortened in the tab.
+- Users can reorder tabs by dragging them; the order is persisted.
+- Notes are saved automatically: one second after the user stops typing, and immediately when switching tabs or views, hiding the panel, or exiting the application. There is no save button. A status line shows when the notes were last saved, or that saving failed; failed saves are retried automatically.
+- The status line also shows the word and character count of the current note.
+- Closing an empty note deletes it immediately. Closing a note that has content or a custom title asks for confirmation in the panel first; Escape cancels the confirmation or an open rename.
+- When there are no notes, the Notes view shows an empty state with a New note button.
+- Notes are stored on disk with atomic writes, so an interrupted save never leaves a damaged notes file.
+- Undo (`Ctrl+Z`) works within the current note only.
+
 ## Pomodoro timer
 
 - The panel contains a single, general pomodoro timer; it is not linked to individual tasks.
